@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"fmt"
-	"log/slog"
 	"os"
 	"path/filepath"
 
@@ -47,10 +46,8 @@ func runQtFetch(cmd *cobra.Command, _ []string) error {
 		}
 	}
 	dest := qtFetchPath(output, cache)
-	slog.Info("fetching the pinned Qt archive", "path", dest)
 	if err := qt.Fetch(cmd.Context(), dest, qt.ArchiveURL, qt.PinSHA256); err != nil {
 		return failure(err)
 	}
-	slog.Info("pinned Qt archive is ready", "path", dest)
 	return emit(cmd, dest, func() error { return writeLines(cmd, []string{dest}) })
 }

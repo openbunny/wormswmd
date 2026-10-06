@@ -4,12 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"slices"
 	"time"
 
 	"github.com/openbunny/wormswmd/internal/game"
+	"github.com/openbunny/wormswmd/internal/progress"
 	"github.com/openbunny/wormswmd/internal/safe"
 	"github.com/openbunny/wormswmd/internal/tree"
 )
@@ -48,6 +50,8 @@ func Backup(ctx context.Context, home string, now time.Time) (string, error) {
 		return "", err
 	}
 	dest := filepath.Join(root, now.Format(stampLayout))
+	done := progress.Begin("Backing up Worms saves to " + dest)
+	var copied tree.Tally
 	if err := os.Mkdir(dest, dirMode); err != nil {
 		return "", fmt.Errorf("saves: %w", err)
 	}
@@ -58,7 +62,7 @@ func Backup(ctx context.Context, home string, now time.Time) (string, error) {
 		if err := ctx.Err(); err != nil {
 			return "", fmt.Errorf("saves: %w", err)
 		}
-		if err := tree.Copy(ctx, team, filepath.Join(dest, teamDirName)); err != nil {
+		if err := tree.CopyCounted(ctx, team, filepath.Join(dest, teamDirName), copied.Add); err != nil {
 			return "", fmt.Errorf("saves: %w", err)
 		}
 	}
@@ -67,10 +71,11 @@ func Backup(ctx context.Context, home string, now time.Time) (string, error) {
 			return "", fmt.Errorf("saves: %w", err)
 		}
 		id := filepath.Base(filepath.Dir(dir))
-		if err := tree.Copy(ctx, dir, filepath.Join(dest, steamDirName, id)); err != nil {
+		if err := tree.CopyCounted(ctx, dir, filepath.Join(dest, steamDirName, id), copied.Add); err != nil {
 			return "", fmt.Errorf("saves: %w", err)
 		}
 	}
+	done("Backed up Worms saves: " + copied.String())
 	return dest, nil
 }
 
@@ -78,6 +83,8 @@ func Restore(ctx context.Context, home, dir string) error {
 	if err := ctx.Err(); err != nil {
 		return fmt.Errorf("saves: %w", err)
 	}
+	done := progress.Begin("Restoring Worms saves from the backup")
+	var copied tree.Tally
 	info, err := os.Lstat(dir)
 	if err != nil {
 		return fmt.Errorf("saves: %w", err)
@@ -122,7 +129,7 @@ func Restore(ctx context.Context, home, dir string) error {
 		return fmt.Errorf("saves: backup %s has no saves", dir)
 	}
 	if restoreTeam {
-		if err := replaceDir(ctx, teamSrc, teamDest); err != nil {
+		if err := replaceDir(ctx, teamSrc, teamDest, copied.Add); err != nil {
 			return err
 		}
 	}
@@ -131,10 +138,11 @@ func Restore(ctx context.Context, home, dir string) error {
 			return fmt.Errorf("saves: %w", err)
 		}
 		src := filepath.Join(dir, steamDirName, id)
-		if err := replaceDir(ctx, src, dests[i]); err != nil {
+		if err := replaceDir(ctx, src, dests[i], copied.Add); err != nil {
 			return err
 		}
 	}
+	done("Restored Worms saves: " + copied.String())
 	return nil
 }
 
@@ -321,7 +329,8 @@ func nearestParent(path string) (string, []string, error) {
 	}
 }
 
-func replaceDir(ctx context.Context, src, dest string) error {
+func replaceDir(ctx context.Context, src, dest string, onFile func(int64)) error {
+	slog.Debug("replacing", "from", src, "to", dest)
 	if err := ctx.Err(); err != nil {
 		return fmt.Errorf("saves: %w", err)
 	}
@@ -335,7 +344,7 @@ func replaceDir(ctx context.Context, src, dest string) error {
 	if err := os.RemoveAll(staged); err != nil {
 		return fmt.Errorf("saves: %w", err)
 	}
-	if err := tree.Copy(ctx, src, staged); err != nil {
+	if err := tree.CopyCounted(ctx, src, staged, onFile); err != nil {
 		if rmErr := os.RemoveAll(staged); rmErr != nil {
 			return fmt.Errorf("saves: copy %s: %w; remove %s: %w", src, err, staged, rmErr)
 		}

@@ -252,3 +252,35 @@ func FuzzParseDeps(f *testing.F) {
 		ParseLoads(out)
 	})
 }
+
+func TestRewriteThroughSymlinkedParent(t *testing.T) {
+	real := t.TempDir()
+	link := filepath.Join(t.TempDir(), "link")
+	if err := os.Symlink(real, link); err != nil {
+		t.Fatal(err)
+	}
+	app := filepath.Join(link, "Worms W.M.D.app")
+	for _, dir := range []string{"MacOS", "Frameworks"} {
+		if err := os.MkdirAll(filepath.Join(app, "Contents", dir), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, file := range []string{filepath.Join("MacOS", "Worms W.M.D"), filepath.Join("Frameworks", "libx.dylib")} {
+		if err := os.WriteFile(filepath.Join(app, "Contents", file), []byte("bin"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	exec := func(_ context.Context, name string, args ...string) ([]byte, error) {
+		switch {
+		case name == "otool" && slices.Contains(args, "-L"):
+			return []byte("bin:\n\t@executable_path/../Frameworks/libx.dylib (compatibility version 1.0.0, current version 1.0.0)\n"), nil
+		case name == "otool", name == "install_name_tool":
+			return []byte("bin:\n"), nil
+		}
+		t.Fatalf("exec %s %v", name, args)
+		return nil, nil
+	}
+	if _, err := Rewrite(t.Context(), app, exec); err != nil {
+		t.Fatalf("Rewrite = %v", err)
+	}
+}

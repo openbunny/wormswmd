@@ -96,7 +96,7 @@ func TestEnsurePinnedQtWarnsOnlyOnBadArchive(t *testing.T) {
 			var buf bytes.Buffer
 			prevLog := slog.Default()
 			t.Cleanup(func() { slog.SetDefault(prevLog) })
-			UseLogger(&buf, true)
+			UseLogger(&buf, Verbose)
 			if err := ensurePinnedQt(t.Context(), path); err != nil {
 				t.Fatal(err)
 			}
@@ -124,9 +124,9 @@ func TestWriteFixText(t *testing.T) {
 		},
 		{
 			name:   "applied",
-			result: apply.Result{App: app, Backup: "/backup", Changes: []string{"Build an AGL stub."}},
+			result: apply.Result{App: app, Backup: "/backup", Changes: []string{"Build the AGL stub library"}},
 			report: check.Report{App: app, Ready: true},
-			want:   "Fixed: Worms W.M.D is ready to open.\n  App: " + app + "\n  Backup: /backup\n  Changes:\n    - Build an AGL stub.\n",
+			want:   "Fixed: Worms W.M.D is ready to open.\n  App: " + app + "\n  Backup: /backup\n  Changes:\n    - Build the AGL stub library\n",
 		},
 		{
 			name:   "not ready",

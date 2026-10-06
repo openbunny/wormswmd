@@ -19,6 +19,7 @@ import (
 	"github.com/openbunny/wormswmd/internal/check"
 	"github.com/openbunny/wormswmd/internal/game"
 	"github.com/openbunny/wormswmd/internal/plistfix"
+	"github.com/openbunny/wormswmd/internal/progress"
 	"github.com/openbunny/wormswmd/internal/qt"
 	"github.com/openbunny/wormswmd/internal/run"
 )
@@ -68,19 +69,20 @@ func Run(ctx context.Context, opt Options) (result Result, err error) {
 	if err = refuseEscape(app); err != nil {
 		return Result{}, err
 	}
-	slog.Info("resolved the app", "app", app)
+	slog.Debug("resolved the app", "app", app)
 	already, err := alreadyApplied(ctx, app, opt)
 	if err != nil {
 		return Result{}, err
 	}
 	if already {
-		slog.Info("the app already matches a ready check", "app", app)
+		slog.Info("Worms W.M.D already has the fix; nothing to change")
 		return Result{App: app, Already: true, Preview: opt.Preview, Changes: []string{}, Warnings: []string{}}, nil
 	}
 	if err = checkHost(ctx, opt); err != nil {
 		return Result{}, err
 	}
-	slog.Info("the Mac passed the host check", "app", app)
+	slog.Info("Checked this Mac: it can run the fix")
+	finished := progress.Begin(startMessage(opt.Preview, app))
 	warnings := []string{}
 	free, err := freeBytes(app)
 	if err != nil {
@@ -88,7 +90,7 @@ func Run(ctx context.Context, opt Options) (result Result, err error) {
 	}
 	if free < minFreeMiB*mib {
 		warnings = append(warnings, fmt.Sprintf("%d MiB free; below %d MiB", free/mib, minFreeMiB))
-		slog.Warn("free space is below the minimum", "free_mib", free/mib, "minimum_mib", minFreeMiB)
+		slog.Warn(fmt.Sprintf("Only %d MiB of disk space is free and the fix needs %d MiB; free some space if the fix fails", free/mib, minFreeMiB))
 	}
 	prefix := opt.QtPrefix
 	archive := ""
@@ -96,7 +98,8 @@ func Run(ctx context.Context, opt Options) (result Result, err error) {
 		if err = qt.Validate(ctx, prefix); err != nil {
 			return Result{}, fmt.Errorf("apply: %w", err)
 		}
-		slog.Info("using the Qt prefix", "prefix", prefix)
+		slog.Info("Using the Qt files you provided")
+		slog.Debug("using the Qt prefix", "prefix", prefix)
 	} else {
 		if opt.QtArchive == "" && opt.EnvQt == "" && opt.EnsureQt != nil {
 			if err = opt.EnsureQt(ctx, archivePath(opt)); err != nil {
@@ -107,7 +110,8 @@ func Run(ctx context.Context, opt Options) (result Result, err error) {
 		if err != nil {
 			return Result{}, err
 		}
-		slog.Info("using the Qt archive", "archive", archive)
+		slog.Info("Using the Qt archive")
+		slog.Debug("using the Qt archive", "archive", archive)
 	}
 	tmp, err := os.MkdirTemp("", "wormswmd-apply-")
 	if err != nil {
@@ -130,7 +134,7 @@ func Run(ctx context.Context, opt Options) (result Result, err error) {
 	}
 	if archive != "" {
 		prefix = tmpQt(tmp)
-		slog.Info("staging the Qt archive", "archive", archive)
+		slog.Debug("staging the Qt archive", "archive", archive)
 		if err = stageArchive(ctx, archive, prefix, opt.QtSHA256); err != nil {
 			return Result{}, err
 		}
@@ -138,54 +142,58 @@ func Run(ctx context.Context, opt Options) (result Result, err error) {
 	ex := run.Or(opt.Exec)
 	aglBin := ""
 	if !opt.Preview {
-		slog.Info("building the AGL stub")
+		slog.Debug("building the AGL stub")
 		aglBin, err = agl.Build(ctx, tmpAGL(tmp), ex)
 		if err != nil {
 			return Result{}, fmt.Errorf("apply: %w", err)
 		}
 	}
-	changes, err := planChanges(ctx, app, prefix)
+	changes, err := planChanges(ctx, app)
 	if err != nil {
 		return Result{}, err
 	}
 	if opt.Preview {
-		slog.Info("preview finished", "app", app)
+		finished("Previewed the fix for Worms W.M.D")
 		return Result{App: app, Changes: changes, Warnings: warnings, Preview: true}, nil
 	}
-	slog.Info("writing the app backup", "app", app)
+	slog.Debug("writing the app backup", "app", app)
 	backupDir, err := backup.Create(ctx, app, opt.Home, opt.BackupDir, opt.Now)
 	if err != nil {
 		return Result{}, fmt.Errorf("apply: %w", err)
 	}
 	result = Result{App: app, Backup: backupDir, Changes: changes, Warnings: warnings}
-	slog.Info("app backup written", "backup", backupDir)
-	slog.Info("writing the macOS fix", "app", app)
+	slog.Debug("app backup written", "backup", backupDir)
 	extra, mutErr := mutate(ctx, app, prefix, aglBin, ex)
 	if mutErr != nil {
-		slog.Error("apply: mutate failed", "backup", backupDir, "err", mutErr)
+		slog.Error("Fixing Worms W.M.D failed; restoring the app from the backup", "backup", backupDir, "err", mutErr)
 		restoreCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), restoreTimeout)
 		defer cancel()
 		rerr := backup.Restore(restoreCtx, backupDir, app, false)
 		if rerr != nil {
-			slog.Error("apply: restore failed", "backup", backupDir, "err", rerr)
+			slog.Error("Restoring Worms W.M.D failed; run wormswmd restore --backup with the backup directory to restore the app", "backup", backupDir, "err", rerr)
 			rerr = fmt.Errorf("apply: %w", rerr)
-		} else {
-			slog.Info("restored the app from the backup", "backup", backupDir)
 		}
 		return result, errors.Join(mutErr, rerr)
 	}
 	installed = true
 	result.Warnings = append(result.Warnings, extra...)
-	slog.Info("clearing the quarantine attribute", "app", app)
+	slog.Info("Clearing the macOS quarantine flag")
 	if err = clearQuarantine(ctx, app, ex); err != nil {
 		return result, err
 	}
-	slog.Info("deleting Qt window defaults")
+	slog.Info("Resetting the saved window settings")
 	if err = resetWindow(ctx, ex); err != nil {
 		return result, err
 	}
-	slog.Info("apply finished", "app", app, "backup", backupDir)
+	finished("Fixed Worms W.M.D")
 	return result, nil
+}
+
+func startMessage(preview bool, app string) string {
+	if preview {
+		return "Previewing the fix for Worms W.M.D at " + app
+	}
+	return "Fixing Worms W.M.D at " + app
 }
 
 func alreadyApplied(ctx context.Context, app string, opt Options) (bool, error) {
@@ -256,6 +264,7 @@ func checkHost(ctx context.Context, opt Options) error {
 	if err != nil {
 		return fmt.Errorf("apply: %w", err)
 	}
+	slog.Debug("checking the host", "macos", version, "arch", opt.Arch)
 	if major < check.MinMajor && !opt.Force {
 		return fmt.Errorf("apply: macOS %s is below major version %d; pass --force", version, check.MinMajor)
 	}

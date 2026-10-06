@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 
@@ -20,12 +21,26 @@ func New() *cobra.Command {
 			if err != nil {
 				return failure(fmt.Errorf("flag --verbose: %w", err))
 			}
-			UseLogger(cmd.ErrOrStderr(), verbose)
+			quiet, err := cmd.Flags().GetBool("quiet")
+			if err != nil {
+				return failure(fmt.Errorf("flag --quiet: %w", err))
+			}
+			switch {
+			case verbose && quiet:
+				return failure(errors.New("--verbose and --quiet cannot be combined; pass one of them"))
+			case verbose:
+				UseLogger(cmd.ErrOrStderr(), Verbose)
+			case quiet:
+				UseLogger(cmd.ErrOrStderr(), Quiet)
+			default:
+				UseLogger(cmd.ErrOrStderr(), Normal)
+			}
 			return nil
 		},
 	}
 	root.PersistentFlags().Bool("json", false, "Print JSON.")
-	root.PersistentFlags().Bool("verbose", false, "Log each step to stderr.")
+	root.PersistentFlags().Bool("verbose", false, "Log every step with timestamps and details to stderr.")
+	root.PersistentFlags().Bool("quiet", false, "Log only warnings and errors to stderr.")
 	root.PersistentFlags().String("home", "", "Home directory. An empty value reads the user home directory.")
 	root.PersistentFlags().String("applications", "", "Applications directory.")
 	root.AddCommand(

@@ -40,7 +40,8 @@ func runLaunch(cmd *cobra.Command, _ []string) error {
 	} else if err := game.Valid(ctx, app); err != nil {
 		return failure(err)
 	}
-	slog.Info("opening the app", "app", app)
+	slog.Info("Opening Worms W.M.D")
+	slog.Debug("opening the app", "app", app)
 	out, err := openExec(ctx, "open", app)
 	if err != nil {
 		return failure(err)

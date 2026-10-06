@@ -138,7 +138,7 @@ func TestRun(t *testing.T) {
 			t.Fatalf("result = %+v", result)
 		}
 		joined := strings.Join(result.Changes, "\n")
-		if !strings.Contains(joined, "Build an AGL stub.") || !strings.Contains(joined, "Replace Qt frameworks from "+prefix) {
+		if !strings.Contains(joined, "Build the AGL stub library") || !strings.Contains(joined, "Replace the Qt libraries with Qt "+qt.Series) {
 			t.Fatalf("changes = %v", result.Changes)
 		}
 		assertNoBackup(t, backup)

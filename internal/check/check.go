@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -17,6 +18,7 @@ import (
 	"github.com/openbunny/wormswmd/internal/bundle"
 	"github.com/openbunny/wormswmd/internal/game"
 	"github.com/openbunny/wormswmd/internal/plistfix"
+	"github.com/openbunny/wormswmd/internal/progress"
 	"github.com/openbunny/wormswmd/internal/qt"
 	"github.com/openbunny/wormswmd/internal/run"
 )
@@ -81,6 +83,26 @@ func Evaluate(ctx context.Context, explicit, home, applications string, probes P
 	if err := ctx.Err(); err != nil {
 		return Report{}, fmt.Errorf("check: %w", err)
 	}
+	done := progress.Begin("Checking whether Worms W.M.D can open")
+	report, err := evaluate(ctx, explicit, home, applications, probes)
+	if err == nil {
+		done(outcome(report))
+	}
+	return report, err
+}
+
+func outcome(report Report) string {
+	switch report.Exit {
+	case ExitReady:
+		return "Checked Worms W.M.D: it can open"
+	case ExitMissing:
+		return "Checked Worms W.M.D: the app was not found"
+	default:
+		return "Checked Worms W.M.D: it cannot open yet"
+	}
+}
+
+func evaluate(ctx context.Context, explicit, home, applications string, probes Probes) (Report, error) {
 	app, missing, err := resolve(ctx, explicit, home, applications)
 	if err != nil || missing.Exit == ExitMissing || missing.Exit == ExitNotReady {
 		return missing, err
@@ -144,6 +166,7 @@ func inspect(ctx context.Context, app string, probes Probes) (Report, error) {
 	if err != nil {
 		return Report{}, err
 	}
+	slog.Debug("probed macOS", "version", version, "minimum", MinMajor)
 	if major < MinMajor {
 		report.Notes = append(report.Notes, fmt.Sprintf("macOS %s is below major version %d", version, MinMajor))
 	}
@@ -151,6 +174,7 @@ func inspect(ctx context.Context, app string, probes Probes) (Report, error) {
 	if err != nil {
 		return Report{}, err
 	}
+	slog.Debug("probed AGL.framework", "app", app, "ready", aglOK)
 	if !aglOK {
 		report.Problems = append(report.Problems, "AGL.framework has no binary")
 	}
@@ -158,6 +182,7 @@ func inspect(ctx context.Context, app string, probes Probes) (Report, error) {
 	if err != nil {
 		return Report{}, err
 	}
+	slog.Debug("probed QtCore", "app", app, "ready", qtOK)
 	if !qtOK {
 		report.Problems = append(report.Problems, "QtCore is not version "+qt.Series)
 	}
@@ -165,6 +190,7 @@ func inspect(ctx context.Context, app string, probes Probes) (Report, error) {
 	if err != nil {
 		return Report{}, err
 	}
+	slog.Debug("probed bundle gaps", "gaps", len(gaps))
 	report.Problems = append(report.Problems, gaps...)
 	arch := probes.Arch
 	if arch == "" {
@@ -175,17 +201,21 @@ func inspect(ctx context.Context, app string, probes Probes) (Report, error) {
 		if err != nil {
 			return Report{}, err
 		}
+		slog.Debug("probed Rosetta", "present", ok)
 		if !ok {
 			report.Problems = append(report.Problems, "Rosetta is absent")
 		}
 	}
-	if err := compiler(ctx, probes); err != nil {
+	compilerErr := compiler(ctx, probes)
+	slog.Debug("probed clang", "error", compilerErr)
+	if err := compilerErr; err != nil {
 		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 			return Report{}, fmt.Errorf("check: %w", err)
 		}
 		report.Notes = append(report.Notes, "clang: "+err.Error())
 	}
 	signed, err := signature(ctx, app, probes)
+	slog.Debug("probed code signature", "app", app, "verified", signed, "error", err)
 	if err != nil {
 		if errors.Is(err, exec.ErrNotFound) {
 			report.Notes = append(report.Notes, "codesign is absent")
@@ -199,10 +229,12 @@ func inspect(ctx context.Context, app string, probes Probes) (Report, error) {
 	if err != nil {
 		return Report{}, err
 	}
+	slog.Debug("probed Qt window defaults", "remain", keys)
 	if keys {
 		report.Problems = append(report.Problems, "Qt window defaults remain")
 	}
 	quarantined, err := quarantine(ctx, app, probes)
+	slog.Debug("probed quarantine", "app", app, "present", quarantined, "error", err)
 	if err != nil {
 		if errors.Is(err, exec.ErrNotFound) {
 			report.Notes = append(report.Notes, "xattr is absent")

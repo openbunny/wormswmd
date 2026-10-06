@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -150,6 +151,7 @@ func Candidates(ctx context.Context, home, applications string) ([]string, error
 		if err != nil {
 			return nil, err
 		}
+		slog.Debug("scanned folder", "root", root, "bundles", len(found))
 		list = append(list, found...)
 	}
 	steam, err := steamLibraryApps(ctx, home)
@@ -166,12 +168,14 @@ func Find(ctx context.Context, home, applications string) ([]string, error) {
 	}
 	seen := map[string]struct{}{}
 	var found []string
+	slog.Debug("searching for the game", "candidates", len(candidates))
 	for _, path := range candidates {
 		if err := ctx.Err(); err != nil {
 			return nil, fmt.Errorf("game: %w", err)
 		}
 		if err := Valid(ctx, path); err != nil {
 			if errors.Is(err, ErrNotBundle) || errors.Is(err, os.ErrNotExist) {
+				slog.Debug("candidate rejected", "path", path, "reason", err)
 				continue
 			}
 			return nil, err
@@ -181,9 +185,11 @@ func Find(ctx context.Context, home, applications string) ([]string, error) {
 			return nil, fmt.Errorf("game: %s: %w", path, err)
 		}
 		if _, ok := seen[key]; ok {
+			slog.Debug("candidate duplicates an earlier match", "path", path)
 			continue
 		}
 		seen[key] = struct{}{}
+		slog.Debug("candidate matches", "path", path)
 		found = append(found, path)
 	}
 	return found, nil
@@ -196,6 +202,7 @@ func Resolve(ctx context.Context, explicit, home, applications string) (string, 
 		}
 		return explicit, nil
 	}
+	slog.Info("Looking for Worms W.M.D")
 	found, err := Find(ctx, home, applications)
 	if err != nil {
 		return "", err
@@ -204,6 +211,7 @@ func Resolve(ctx context.Context, explicit, home, applications string) (string, 
 	case 0:
 		return "", fmt.Errorf("game: Worms W.M.D.app %w; pass --app", ErrNotFound)
 	case 1:
+		slog.Info("Found Worms W.M.D at " + found[0])
 		return found[0], nil
 	default:
 		return "", &AmbiguousError{Paths: found}

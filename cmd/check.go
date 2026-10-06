@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"fmt"
-	"log/slog"
 
 	"github.com/spf13/cobra"
 
@@ -30,7 +29,6 @@ func runCheck(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 	var probes check.Probes
-	slog.Info("checking whether the app can open", "app", app)
 	report, err := check.Evaluate(cmd.Context(), app, home, applications, probes)
 	if err != nil {
 		return failure(err)
@@ -38,7 +36,6 @@ func runCheck(cmd *cobra.Command, _ []string) error {
 	if err := writeCheck(cmd, report); err != nil {
 		return err
 	}
-	slog.Info("check finished", "app", report.App, "ready", report.Ready, "exit", report.Exit)
 	if report.Exit == 0 {
 		return nil
 	}

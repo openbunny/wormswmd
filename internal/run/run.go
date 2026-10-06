@@ -5,8 +5,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os/exec"
 	"time"
+
+	"github.com/openbunny/wormswmd/internal/progress"
 )
 
 const maxToolOutput = 1 << 20
@@ -22,7 +25,9 @@ func Command(ctx context.Context, name string, args ...string) ([]byte, error) {
 	var buf bytes.Buffer
 	cmd.Stdout = &buf
 	cmd.Stderr = &buf
+	start := time.Now()
 	err := cmd.Run()
+	slog.Debug("ran command", "name", name, "args", args, "duration", progress.Duration(time.Since(start)), "error", err)
 	if ctxErr := ctx.Err(); err != nil && ctxErr != nil && !errors.Is(err, ctxErr) {
 		err = errors.Join(ctxErr, err)
 	}

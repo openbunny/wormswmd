@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"slices"
@@ -18,6 +19,7 @@ import (
 	"time"
 
 	"github.com/openbunny/wormswmd/internal/game"
+	"github.com/openbunny/wormswmd/internal/progress"
 	"github.com/openbunny/wormswmd/internal/safe"
 	"github.com/openbunny/wormswmd/internal/tree"
 )
@@ -50,6 +52,20 @@ type fileEntry struct {
 	symlink bool
 	digest  string
 	size    int64
+}
+
+type copyProgress struct {
+	tree.Tally
+	counter *progress.Counter
+}
+
+func newCopyProgress(label string, total int) *copyProgress {
+	return &copyProgress{counter: progress.Count(label, total)}
+}
+
+func (c *copyProgress) onFile(size int64) {
+	c.Add(size)
+	c.counter.Add(1)
 }
 
 type restorePlan struct {
@@ -104,6 +120,7 @@ func Create(ctx context.Context, app, home, explicit string, now time.Time) (dir
 	if err = rejectInsideApp(app, dest); err != nil {
 		return "", err
 	}
+	done := progress.Begin("Backing up Worms W.M.D to " + dest)
 	if err = makeBackupDir(dest); err != nil {
 		return "", err
 	}
@@ -113,15 +130,6 @@ func Create(ctx context.Context, app, home, explicit string, now time.Time) (dir
 		}
 		err = errors.Join(err, removeCreated(dest))
 	}()
-	for _, name := range []string{dirFrameworks, dirPlugIns, dirMacOS, fileInfoPlist} {
-		if err := ctx.Err(); err != nil {
-			return "", fmt.Errorf("backup: %w", err)
-		}
-		if err := tree.Copy(ctx, filepath.Join(contents, name), filepath.Join(dest, name)); err != nil {
-			return "", fmt.Errorf("backup: %w", err)
-		}
-	}
-	sig := false
 	optionals := []struct {
 		src       string
 		dst       string
@@ -131,8 +139,38 @@ func Create(ctx context.Context, app, home, explicit string, now time.Time) (dir
 		{filepath.Join(contents, dirResources, dirCommonData), dirCommonData, false},
 		{filepath.Join(contents, dirCodeSignature), dirCodeSignature, true},
 	}
+	required := []string{dirFrameworks, dirPlugIns, dirMacOS, fileInfoPlist}
+	var sources []string
+	for _, name := range required {
+		sources = append(sources, filepath.Join(contents, name))
+	}
 	for _, opt := range optionals {
-		copiedDir, err := copyOptional(ctx, opt.src, filepath.Join(dest, opt.dst))
+		present, err := isDir(opt.src)
+		if err != nil {
+			return "", err
+		}
+		if present {
+			sources = append(sources, opt.src)
+		}
+	}
+	total, err := tree.Measure(ctx, sources...)
+	if err != nil {
+		return "", fmt.Errorf("backup: %w", err)
+	}
+	slog.Debug("measured the app", "files", total.Files, "bytes", total.Bytes, "sources", len(sources))
+	copied := newCopyProgress("Copying the app files", total.Files)
+	for _, name := range required {
+		if err := ctx.Err(); err != nil {
+			return "", fmt.Errorf("backup: %w", err)
+		}
+		slog.Debug("copying", "from", filepath.Join(contents, name), "to", filepath.Join(dest, name))
+		if err := tree.CopyCounted(ctx, filepath.Join(contents, name), filepath.Join(dest, name), copied.onFile); err != nil {
+			return "", fmt.Errorf("backup: %w", err)
+		}
+	}
+	sig := false
+	for _, opt := range optionals {
+		copiedDir, err := copyOptional(ctx, opt.src, filepath.Join(dest, opt.dst), copied.onFile)
 		if err != nil {
 			return "", err
 		}
@@ -154,6 +192,7 @@ func Create(ctx context.Context, app, home, explicit string, now time.Time) (dir
 	if err := Verify(ctx, dest); err != nil {
 		return "", err
 	}
+	done("Backed up Worms W.M.D: " + copied.String())
 	return dest, nil
 }
 
@@ -161,6 +200,7 @@ func Verify(ctx context.Context, dir string) error {
 	if err := ctx.Err(); err != nil {
 		return fmt.Errorf("backup: %w", err)
 	}
+	done := progress.Begin("Verifying the backup")
 	meta, err := loadMetadata(dir)
 	if err != nil {
 		return err
@@ -218,6 +258,7 @@ func Verify(ctx context.Context, dir string) error {
 	if size != meta.exeSize {
 		return fmt.Errorf("backup: %s size is %d bytes, metadata lists %d bytes", exe, size, meta.exeSize)
 	}
+	done("Verified the backup")
 	return nil
 }
 
@@ -225,6 +266,7 @@ func Restore(ctx context.Context, dir, app string, force bool) error {
 	if err := ctx.Err(); err != nil {
 		return fmt.Errorf("backup: %w", err)
 	}
+	done := progress.Begin("Restoring Worms W.M.D from the backup")
 	if err := Verify(ctx, dir); err != nil {
 		return err
 	}
@@ -248,7 +290,12 @@ func Restore(ctx context.Context, dir, app string, force bool) error {
 	if err := destinationChecks(app, plan); err != nil {
 		return err
 	}
-	return restoreInto(ctx, dir, app, plan)
+	copied, err := restoreInto(ctx, dir, app, plan)
+	if err != nil {
+		return err
+	}
+	done("Restored Worms W.M.D: " + copied.String())
+	return nil
 }
 
 func backupPath(home, explicit string, now time.Time) string {
@@ -275,7 +322,7 @@ func makeBackupDir(path string) error {
 	return nil
 }
 
-func copyOptional(ctx context.Context, src, dst string) (bool, error) {
+func copyOptional(ctx context.Context, src, dst string, onFile func(int64)) (bool, error) {
 	if err := ctx.Err(); err != nil {
 		return false, fmt.Errorf("backup: %w", err)
 	}
@@ -292,7 +339,8 @@ func copyOptional(ctx context.Context, src, dst string) (bool, error) {
 	if !info.IsDir() {
 		return false, fmt.Errorf("backup: %s is not a directory", src)
 	}
-	if err := tree.Copy(ctx, src, dst); err != nil {
+	slog.Debug("copying", "from", src, "to", dst)
+	if err := tree.CopyCounted(ctx, src, dst, onFile); err != nil {
 		return false, fmt.Errorf("backup: %w", err)
 	}
 	return true, nil
@@ -509,68 +557,61 @@ type staged struct {
 
 var renamePath = os.Rename
 
-func restoreInto(ctx context.Context, dir, app string, plan restorePlan) error {
-	var stagedItems []staged
-	stage := func(src, dst string) error {
-		item, err := stageCopy(ctx, app, src, dst)
-		if err != nil {
-			return err
-		}
-		stagedItems = append(stagedItems, item)
-		return nil
-	}
-	fail := func(err error) error {
-		return errors.Join(err, discardFresh(stagedItems))
-	}
-	pairs := []struct{ src, dst string }{
-		{dirFrameworks, filepath.Join(app, dirContents, dirFrameworks)},
-		{dirPlugIns, filepath.Join(app, dirContents, dirPlugIns)},
-		{dirMacOS, filepath.Join(app, dirContents, dirMacOS)},
-	}
-	for _, pair := range pairs {
-		if err := stage(filepath.Join(dir, pair.src), pair.dst); err != nil {
-			return fail(err)
-		}
-	}
-	plist := filepath.Join(app, dirContents, fileInfoPlist)
-	if err := stage(filepath.Join(dir, fileInfoPlist), plist); err != nil {
-		return fail(err)
+func restoreInto(ctx context.Context, dir, app string, plan restorePlan) (tree.Tally, error) {
+	contents := filepath.Join(app, dirContents)
+	jobs := []struct{ src, dst string }{
+		{dirFrameworks, filepath.Join(contents, dirFrameworks)},
+		{dirPlugIns, filepath.Join(contents, dirPlugIns)},
+		{dirMacOS, filepath.Join(contents, dirMacOS)},
+		{fileInfoPlist, filepath.Join(contents, fileInfoPlist)},
 	}
 	if plan.dataOSX {
-		dst := filepath.Join(app, dirContents, dirResources, dirDataOSX)
-		if err := stage(filepath.Join(dir, dirDataOSX), dst); err != nil {
-			return fail(err)
-		}
+		jobs = append(jobs, struct{ src, dst string }{dirDataOSX, filepath.Join(contents, dirResources, dirDataOSX)})
 	}
 	if plan.common {
-		dst := filepath.Join(app, dirContents, dirResources, dirCommonData)
-		if err := stage(filepath.Join(dir, dirCommonData), dst); err != nil {
-			return fail(err)
-		}
+		jobs = append(jobs, struct{ src, dst string }{dirCommonData, filepath.Join(contents, dirResources, dirCommonData)})
 	}
 	if plan.sig.present && plan.sig.value {
-		dst := filepath.Join(app, dirContents, dirCodeSignature)
-		if err := stage(filepath.Join(dir, dirCodeSignature), dst); err != nil {
-			return fail(err)
+		jobs = append(jobs, struct{ src, dst string }{dirCodeSignature, filepath.Join(contents, dirCodeSignature)})
+	}
+	sources := make([]string, 0, len(jobs))
+	for _, job := range jobs {
+		sources = append(sources, filepath.Join(dir, job.src))
+	}
+	total, err := tree.Measure(ctx, sources...)
+	if err != nil {
+		return tree.Tally{}, fmt.Errorf("backup: %w", err)
+	}
+	copied := newCopyProgress("Copying the backup files", total.Files)
+	var stagedItems []staged
+	for i, job := range jobs {
+		slog.Debug("staging", "from", sources[i], "to", job.dst)
+		item, err := stageCopy(ctx, app, sources[i], job.dst, copied.onFile)
+		if err != nil {
+			return tree.Tally{}, errors.Join(err, discardFresh(stagedItems))
 		}
+		stagedItems = append(stagedItems, item)
 	}
 	if err := placeStaged(ctx, stagedItems); err != nil {
-		return err
+		return tree.Tally{}, err
 	}
 	if plan.sig.present && !plan.sig.value {
-		sig := filepath.Join(app, dirContents, dirCodeSignature)
+		sig := filepath.Join(contents, dirCodeSignature)
 		spare, err := moveAside(ctx, app, sig)
 		if err != nil {
-			return undoStaged(ctx, stagedItems, err)
+			return tree.Tally{}, undoStaged(ctx, stagedItems, err)
 		}
 		if spare != "" {
 			stagedItems = append(stagedItems, staged{dst: sig, prior: spare})
 		}
 	}
-	return removePriors(stagedItems)
+	if err := removePriors(stagedItems); err != nil {
+		return tree.Tally{}, err
+	}
+	return copied.Tally, nil
 }
 
-func stageCopy(ctx context.Context, app, src, dst string) (staged, error) {
+func stageCopy(ctx context.Context, app, src, dst string, onFile func(int64)) (staged, error) {
 	if err := ctx.Err(); err != nil {
 		return staged{}, fmt.Errorf("backup: %w", err)
 	}
@@ -590,7 +631,7 @@ func stageCopy(ctx context.Context, app, src, dst string) (staged, error) {
 		if err != nil {
 			return staged{}, fmt.Errorf("backup: %w", err)
 		}
-		if err := tree.Copy(ctx, src, dir); err != nil {
+		if err := tree.CopyCounted(ctx, src, dir, onFile); err != nil {
 			return staged{}, errors.Join(fmt.Errorf("backup: %w", err), os.RemoveAll(dir))
 		}
 		if err := os.Chmod(dir, appDirMode); err != nil {
@@ -609,7 +650,7 @@ func stageCopy(ctx context.Context, app, src, dst string) (staged, error) {
 	if err := os.Remove(name); err != nil {
 		return staged{}, fmt.Errorf("backup: %w", err)
 	}
-	if err := tree.Copy(ctx, src, name); err != nil {
+	if err := tree.CopyCounted(ctx, src, name, onFile); err != nil {
 		return staged{}, errors.Join(fmt.Errorf("backup: %w", err), os.RemoveAll(name))
 	}
 	return staged{dst: dst, fresh: name}, nil

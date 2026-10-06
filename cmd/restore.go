@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"fmt"
-	"log/slog"
 
 	"github.com/spf13/cobra"
 
@@ -37,10 +36,8 @@ func runRestore(cmd *cobra.Command, _ []string) error {
 	if err != nil {
 		return failure(fmt.Errorf("flag --force: %w", err))
 	}
-	slog.Info("restoring the app", "backup", dir, "app", app)
 	if err := backup.Restore(cmd.Context(), dir, app, force); err != nil {
 		return failure(err)
 	}
-	slog.Info("restore finished", "backup", dir, "app", app)
 	return emit(cmd, map[string]string{"backup": dir, "app": app}, func() error { return nil })
 }

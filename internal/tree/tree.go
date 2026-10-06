@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/openbunny/wormswmd/internal/progress"
 	"github.com/openbunny/wormswmd/internal/safe"
 )
 
@@ -17,7 +18,56 @@ const (
 	ownerWrite = 0o200
 )
 
+type Tally struct {
+	Files int
+	Bytes int64
+}
+
+func (t *Tally) Add(size int64) {
+	t.Files++
+	t.Bytes += size
+}
+
+func (t Tally) String() string {
+	noun := "files"
+	if t.Files == 1 {
+		noun = "file"
+	}
+	return fmt.Sprintf("%s %s, %s", progress.Number(t.Files), noun, progress.Bytes(t.Bytes))
+}
+
+func Measure(ctx context.Context, paths ...string) (Tally, error) {
+	var t Tally
+	for _, root := range paths {
+		err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+			if err != nil {
+				return fmt.Errorf("tree: %w", err)
+			}
+			if err := ctx.Err(); err != nil {
+				return fmt.Errorf("tree: %w", err)
+			}
+			if !d.Type().IsRegular() {
+				return nil
+			}
+			info, err := d.Info()
+			if err != nil {
+				return fmt.Errorf("tree: stat %s: %w", path, err)
+			}
+			t.Add(info.Size())
+			return nil
+		})
+		if err != nil {
+			return Tally{}, err
+		}
+	}
+	return t, nil
+}
+
 func Copy(ctx context.Context, src, dst string) error {
+	return CopyCounted(ctx, src, dst, nil)
+}
+
+func CopyCounted(ctx context.Context, src, dst string, onFile func(size int64)) error {
 	if err := ctx.Err(); err != nil {
 		return fmt.Errorf("tree: %w", err)
 	}
@@ -28,10 +78,10 @@ func Copy(ctx context.Context, src, dst string) error {
 	if err := os.MkdirAll(filepath.Dir(dst), dirMode); err != nil {
 		return fmt.Errorf("tree: mkdir %s: %w", filepath.Dir(dst), err)
 	}
-	return copyEntry(ctx, src, dst, dst, info)
+	return copyEntry(ctx, src, dst, dst, info, onFile)
 }
 
-func copyEntry(ctx context.Context, src, dst, root string, info fs.FileInfo) error {
+func copyEntry(ctx context.Context, src, dst, root string, info fs.FileInfo, onFile func(int64)) error {
 	if err := ctx.Err(); err != nil {
 		return fmt.Errorf("tree: %w", err)
 	}
@@ -61,19 +111,19 @@ func copyEntry(ctx context.Context, src, dst, root string, info fs.FileInfo) err
 			if err != nil {
 				return fmt.Errorf("tree: stat %s: %w", entry.Name(), err)
 			}
-			if err := copyEntry(ctx, filepath.Join(src, entry.Name()), filepath.Join(dst, entry.Name()), root, childInfo); err != nil {
+			if err := copyEntry(ctx, filepath.Join(src, entry.Name()), filepath.Join(dst, entry.Name()), root, childInfo, onFile); err != nil {
 				return err
 			}
 		}
 		return nil
 	case info.Mode().IsRegular():
-		return copyFile(ctx, src, dst, info.Mode())
+		return copyFile(ctx, src, dst, info.Mode(), onFile)
 	default:
 		return fmt.Errorf("tree: unsupported file type: %s", src)
 	}
 }
 
-func copyFile(ctx context.Context, src, dst string, mode fs.FileMode) error {
+func copyFile(ctx context.Context, src, dst string, mode fs.FileMode, onFile func(int64)) error {
 	if err := ctx.Err(); err != nil {
 		return fmt.Errorf("tree: %w", err)
 	}
@@ -88,7 +138,7 @@ func copyFile(ctx context.Context, src, dst string, mode fs.FileMode) error {
 	if err != nil {
 		return fmt.Errorf("tree: create %s: %w", dst, errors.Join(err, in.Close()))
 	}
-	_, copyErr := io.Copy(out, in)
+	n, copyErr := io.Copy(out, in)
 	inErr := in.Close()
 	outErr := out.Close()
 	switch {
@@ -98,6 +148,9 @@ func copyFile(ctx context.Context, src, dst string, mode fs.FileMode) error {
 		return fmt.Errorf("tree: close %s: %w", src, errors.Join(inErr, outErr))
 	case outErr != nil:
 		return fmt.Errorf("tree: close %s: %w", dst, outErr)
+	}
+	if onFile != nil {
+		onFile(n)
 	}
 	return nil
 }

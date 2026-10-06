@@ -19,7 +19,7 @@ AGL is Apple's OpenGL framework. macOS 26 does not ship its binary. Qt is the UI
 
 `wormswmd apply` backs up the app, builds an AGL stub, and replaces the bundled Qt frameworks from the archive pinned by `PinSHA256` in `internal/qt`. It rewrites Mach-O install names that load `/System/Library/Frameworks/AGL.framework/`, updates `Info.plist`, rewrites known HTTP config URLs, ad-hoc signs the app, clears the quarantine attribute, and deletes the Qt window keys.
 
-`wormswmd fix` runs those writes in `apply`'s order. When `--qt`, `--qt-prefix`, and `WORMSWMD_QT` are unset, `fix` checks the user cache after the host check and before the backup. It downloads the pinned archive when that file is absent or its SHA-256 does not match the pin. When the app already matches a ready check, `fix` does not download and does not write. An error from `apply` exits 1 and does not run `check`. When `apply` returns, `fix` runs `check` and exits with the check status. Text output starts with one sentence that states whether the app is ready to open, then lists the app path and each backup, change, warning, problem and note that is present. JSON output is one object with `apply` and `check` fields. Progress logs go to stderr; by default only warnings and errors print, and `--verbose` prints every step.
+`wormswmd fix` runs those writes in `apply`'s order. When `--qt`, `--qt-prefix`, and `WORMSWMD_QT` are unset, `fix` checks the user cache after the host check and before the backup. It downloads the pinned archive when that file is absent or its SHA-256 does not match the pin. When the app already matches a ready check, `fix` does not download and does not write. An error from `apply` exits 1 and does not run `check`. When `apply` returns, `fix` runs `check` and exits with the check status. Text output starts with one sentence that states whether the app is ready to open, then lists the app path and each backup, change, warning, problem and note that is present. JSON output is one object with `apply` and `check` fields.
 
 Without `--force`, `wormswmd apply` writes nothing when `wormswmd check` would exit 0. `check` exits 0 when the app is ready, 1 when the app is missing or the check returns an error, and 2 when the app is not ready. Exit 2 is any of these:
 
@@ -72,7 +72,7 @@ just build
 
 ## Logging
 
-Operational logs go to stderr through `charm.land/log` as the `log/slog` handler. stdout remains the command result, including under `--json`. The command line does not use `charm.land/fang`: it turns every error into exit status 1, which would drop the check status 2.
+Progress goes to stderr through `charm.land/log` as the `log/slog` handler. stdout remains the command result, including under `--json`. By default each step prints one line, and steps that take longer report counts, sizes and durations. `--verbose` adds timestamps and details, including every external command and its duration. `--quiet` prints only warnings and errors. `--verbose` and `--quiet` cannot be combined. The command line does not use `charm.land/fang`: it turns every error into exit status 1, which would drop the check status 2.
 
 ## Network
 

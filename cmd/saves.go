@@ -43,12 +43,10 @@ func runSavesBackup(cmd *cobra.Command, _ []string) error {
 	if err != nil {
 		return err
 	}
-	slog.Info("backing up saves")
 	dir, err := saves.Backup(cmd.Context(), home, time.Now())
 	if err != nil {
 		return failure(err)
 	}
-	slog.Info("save backup written", "path", dir)
 	return emit(cmd, dir, func() error { return writeLines(cmd, []string{dir}) })
 }
 
@@ -61,11 +59,9 @@ func runSavesRestore(cmd *cobra.Command, _ []string) error {
 	if err != nil {
 		return err
 	}
-	slog.Info("restoring saves", "path", dir)
 	if err := saves.Restore(cmd.Context(), home, dir); err != nil {
 		return failure(err)
 	}
-	slog.Info("save restore finished", "path", dir)
 	return emit(cmd, dir, func() error { return nil })
 }
 
@@ -74,11 +70,10 @@ func runSavesList(cmd *cobra.Command, _ []string) error {
 	if err != nil {
 		return err
 	}
-	slog.Info("listing save backups")
 	dirs, err := saves.List(cmd.Context(), home)
 	if err != nil {
 		return failure(err)
 	}
-	slog.Info("save backup list finished", "count", len(dirs))
+	slog.Debug("listed save backups", "count", len(dirs))
 	return emit(cmd, dirs, func() error { return writeLines(cmd, dirs) })
 }

@@ -4,12 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/openbunny/wormswmd/internal/bundle"
 	"github.com/openbunny/wormswmd/internal/game"
+	"github.com/openbunny/wormswmd/internal/progress"
 	"github.com/openbunny/wormswmd/internal/run"
 	"github.com/openbunny/wormswmd/internal/safe"
 )
@@ -108,6 +110,7 @@ func Rewrite(ctx context.Context, app string, exec run.Exec) ([]string, error) {
 		return nil, fmt.Errorf("macho: %w", err)
 	}
 	exec = run.Or(exec)
+	finish := progress.Begin("Rewriting the library paths inside the game")
 	gameExec := game.Executable(app)
 	contents := filepath.Join(app, "Contents")
 	frameworks := filepath.Join(contents, "Frameworks")
@@ -208,6 +211,10 @@ func Rewrite(ctx context.Context, app string, exec run.Exec) ([]string, error) {
 		}
 		statErr = err
 	}
+	root, err := filepath.EvalSymlinks(contents)
+	if err != nil {
+		return nil, fmt.Errorf("macho: resolve %s: %w", contents, err)
+	}
 	inside := func(path string) bool {
 		resolvedPath, err := resolved(path)
 		if errors.Is(err, os.ErrNotExist) {
@@ -217,7 +224,7 @@ func Rewrite(ctx context.Context, app string, exec run.Exec) ([]string, error) {
 			noteStat(err)
 			return true
 		}
-		return safe.InRoot(contents, resolvedPath) == nil
+		return safe.InRoot(root, resolvedPath) == nil
 	}
 	exists := func(path string) bool {
 		st, err := os.Stat(path)
@@ -228,6 +235,8 @@ func Rewrite(ctx context.Context, app string, exec run.Exec) ([]string, error) {
 		return st.Mode().IsRegular()
 	}
 	var warnings []string
+	var changed, touched int
+	counter := progress.Count("Rewriting library paths", len(items))
 	for i, item := range items {
 		if err := ctx.Err(); err != nil {
 			return nil, fmt.Errorf("macho: %w", err)
@@ -252,7 +261,14 @@ func Rewrite(ctx context.Context, app string, exec run.Exec) ([]string, error) {
 		if err := applyPlan(ctx, exec, item.Path, planned); err != nil {
 			return nil, err
 		}
+		slog.Debug("macho: image rewritten", "path", item.Path, "edits", len(planned.Edits))
+		if len(planned.Edits) > 0 {
+			touched++
+			changed += len(planned.Edits)
+		}
+		counter.Add(1)
 	}
+	finish(fmt.Sprintf("Rewrote library paths: %d changes in %d of %d files", changed, touched, len(items)))
 	return warnings, nil
 }
 

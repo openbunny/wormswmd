@@ -172,12 +172,12 @@ func TestSupportPrintsArchivePath(t *testing.T) {
 func commandOutput(t *testing.T, args ...string) string {
 	t.Helper()
 	root := New()
-	var out bytes.Buffer
+	var out, logs bytes.Buffer
 	root.SetOut(&out)
-	root.SetErr(&out)
+	root.SetErr(&logs)
 	root.SetArgs(args)
 	if err := root.ExecuteContext(t.Context()); err != nil {
-		t.Fatalf("ExecuteContext() error = %v; output = %s", err, out.String())
+		t.Fatalf("ExecuteContext() error = %v; stdout = %s; stderr = %s", err, out.String(), logs.String())
 	}
 	return out.String()
 }

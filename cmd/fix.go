@@ -26,12 +26,10 @@ func runFix(cmd *cobra.Command, opt apply.Options) error {
 	if opt.QtPrefix == "" && opt.QtArchive == "" && opt.EnvQt == "" {
 		opt.EnsureQt = ensurePinnedQt
 	}
-	slog.Info("starting the macOS fix")
 	result, err := apply.Run(cmd.Context(), opt)
 	if err != nil {
 		return failure(err)
 	}
-	slog.Info("checking the app after the fix", "app", result.App)
 	report, err := check.Evaluate(cmd.Context(), result.App, opt.Home, opt.Applications, check.Probes{})
 	if err != nil {
 		return failure(err)
@@ -39,7 +37,7 @@ func runFix(cmd *cobra.Command, opt apply.Options) error {
 	if err := writeFix(cmd, result, report); err != nil {
 		return err
 	}
-	slog.Info("check after the fix returned", "app", report.App, "ready", report.Ready, "exit", report.Exit)
+	slog.Debug("check after the fix returned", "app", report.App, "ready", report.Ready, "exit", report.Exit)
 	if report.Exit == 0 {
 		return nil
 	}
@@ -51,20 +49,20 @@ var fetchQt = qt.Fetch
 func ensurePinnedQt(ctx context.Context, path string) error {
 	err := qt.VerifyFile(ctx, path, qt.PinSHA256)
 	if err == nil {
-		slog.Info("pinned Qt archive is present", "path", path)
+		slog.Debug("pinned Qt archive is present", "path", path)
 		return nil
 	}
 	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 		return fmt.Errorf("fix: %w", err)
 	}
 	if !errors.Is(err, fs.ErrNotExist) {
-		slog.Warn("pinned Qt archive failed verification", "path", path, "err", err)
+		slog.Warn("The downloaded Qt archive failed verification; downloading it again", "path", path, "err", err)
 	}
-	slog.Info("downloading the pinned Qt archive", "path", path)
+	slog.Info("Downloading the Qt archive to " + path)
 	if err := fetchQt(ctx, path, qt.ArchiveURL, qt.PinSHA256); err != nil {
 		return fmt.Errorf("fix: %w", err)
 	}
-	slog.Info("pinned Qt archive is ready", "path", path)
+	slog.Debug("pinned Qt archive is ready", "path", path)
 	return nil
 }
 

@@ -5,10 +5,12 @@ import (
 	_ "embed"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
 
+	"github.com/openbunny/wormswmd/internal/progress"
 	"github.com/openbunny/wormswmd/internal/run"
 	"github.com/openbunny/wormswmd/internal/tree"
 	"howett.net/plist"
@@ -41,6 +43,7 @@ func Build(ctx context.Context, dest string, exec run.Exec) (string, error) {
 		return "", fmt.Errorf("agl: %w", err)
 	}
 	exec = run.Or(exec)
+	finish := progress.Begin("Building the AGL stub library the game needs")
 	if err := os.MkdirAll(dest, privateDir); err != nil {
 		return "", fmt.Errorf("agl: %w", err)
 	}
@@ -76,6 +79,7 @@ func Build(ctx context.Context, dest string, exec run.Exec) (string, error) {
 		errARM := compile(ctx, exec, compiler, sdk, archARM, minARM, srcPath, arm)
 		if errX86 != nil || errARM != nil {
 			last = errors.Join(errX86, errARM)
+			slog.Debug("agl: SDK did not build both slices", "sdk", sdk, "err", last)
 			continue
 		}
 		out := filepath.Join(dest, "AGL")
@@ -87,6 +91,8 @@ func Build(ctx context.Context, dest string, exec run.Exec) (string, error) {
 				return "", fmt.Errorf("agl: missing %s slice: %w", arch, err)
 			}
 		}
+		slog.Debug("agl: built", "sdk", sdk, "output", out)
+		finish("Built the AGL stub library for Intel and Apple silicon")
 		return out, nil
 	}
 	return "", fmt.Errorf("agl: no installed macOS SDK built both slices: %w", last)
@@ -181,5 +187,6 @@ func Install(ctx context.Context, frameworkDir, binary string) error {
 			return fmt.Errorf("agl: symlink %s: %w", link[0], err)
 		}
 	}
+	slog.Debug("agl: installed", "framework", frameworkDir, "binary", binary)
 	return nil
 }

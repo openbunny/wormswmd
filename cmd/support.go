@@ -1,8 +1,6 @@
 package cmd
 
 import (
-	"log/slog"
-
 	"github.com/spf13/cobra"
 
 	"github.com/openbunny/wormswmd/internal/support"
@@ -35,11 +33,9 @@ func runSupport(cmd *cobra.Command, _ []string) error {
 	if err != nil {
 		return err
 	}
-	slog.Info("writing the support report", "output", output)
 	if err := support.Write(cmd.Context(), app, home, applications, output); err != nil {
 		return failure(err)
 	}
-	slog.Info("support report written", "output", output)
 	return emit(cmd, supportJSON{Output: output}, func() error { return writeLines(cmd, []string{output}) })
 }
 

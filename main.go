@@ -16,7 +16,7 @@ func main() {
 }
 
 func run() int {
-	cmd.UseLogger(os.Stderr, false)
+	cmd.UseLogger(os.Stderr, cmd.Normal)
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	err := cmd.New().ExecuteContext(ctx)

@@ -22,6 +22,7 @@ import (
 
 	"github.com/openbunny/wormswmd/internal/bundle"
 	"github.com/openbunny/wormswmd/internal/plistfix"
+	"github.com/openbunny/wormswmd/internal/progress"
 	"github.com/openbunny/wormswmd/internal/safe"
 )
 
@@ -41,6 +42,8 @@ const (
 	dirMode           = 0o755
 	fileMode          = 0o644
 	serverStatusError = 500
+	quarterPercent    = 25
+	fullPercent       = 100
 	coreName          = "QtCore"
 	qtPrefix          = "Qt"
 	sharpyuvDylib     = "libsharpyuv.0.dylib"
@@ -118,6 +121,8 @@ func Fetch(ctx context.Context, dest, url, pin string) error {
 	}
 	if _, err := os.Stat(dest); err == nil {
 		if err := VerifyFile(ctx, dest, pin); err == nil {
+			slog.Info("The Qt archive is already downloaded and verified")
+			slog.Debug("qt: archive cached", "path", dest)
 			return nil
 		} else if !errors.Is(err, errChecksum) {
 			return err
@@ -128,20 +133,61 @@ func Fetch(ctx context.Context, dest, url, pin string) error {
 	if err := os.MkdirAll(filepath.Dir(dest), dirMode); err != nil {
 		return fmt.Errorf("qt: %w", err)
 	}
+	finish := progress.Begin("Downloading the Qt archive to " + dest)
 	var last error
 	for attempt := range fetchAttempts {
 		attemptCtx, cancel := context.WithTimeout(ctx, fetchTimeout)
 		last = fetchOnce(attemptCtx, dest, url, pin)
 		cancel()
 		if last == nil {
+			st, err := os.Stat(dest)
+			if err != nil {
+				return fmt.Errorf("qt: %w", err)
+			}
+			finish("Downloaded the Qt archive: " + progress.Bytes(st.Size()))
 			return nil
 		}
 		if !transient(last) || ctx.Err() != nil || attempt+1 == fetchAttempts {
 			return last
 		}
-		slog.Warn("qt: fetch attempt failed", "attempt", attempt+1, "err", last)
+		slog.Warn(fmt.Sprintf("The Qt archive download was interrupted (%v); trying again", last))
+		slog.Debug("qt: fetch attempt failed", "attempt", attempt+1, "url", url, "err", last)
 	}
 	return last
+}
+
+type download struct {
+	total int64
+	done  int64
+	next  int
+}
+
+func newDownload(total int64) *download {
+	return &download{total: total, next: quarterPercent}
+}
+
+func (d *download) add(n int) (percent int) {
+	d.done += int64(n)
+	if d.total <= 0 {
+		return 0
+	}
+	mark := int(min(d.done*fullPercent/d.total, fullPercent)) / quarterPercent * quarterPercent
+	if mark < d.next {
+		return 0
+	}
+	d.next = mark + quarterPercent
+	return mark
+}
+
+type downloadWriter struct {
+	*download
+}
+
+func (w downloadWriter) Write(p []byte) (int, error) {
+	if percent := w.add(len(p)); percent > 0 {
+		slog.Info(fmt.Sprintf("Downloading the Qt archive: %d%% (%s of %s)", percent, progress.Bytes(w.done), progress.Bytes(w.total)))
+	}
+	return len(p), nil
 }
 
 func fetchOnce(ctx context.Context, dest, url, pin string) (err error) {
@@ -179,7 +225,7 @@ func fetchOnce(ctx context.Context, dest, url, pin string) (err error) {
 		}
 	}()
 	sum := sha256.New()
-	n, err := io.Copy(io.MultiWriter(tmp, sum), io.LimitReader(resp.Body, maxDownloadBytes+1))
+	n, err := io.Copy(io.MultiWriter(tmp, sum, downloadWriter{newDownload(resp.ContentLength)}), io.LimitReader(resp.Body, maxDownloadBytes+1))
 	closeErr := tmp.Close()
 	if err != nil {
 		return fmt.Errorf("qt: download: %w", err)
@@ -201,6 +247,7 @@ func fetchOnce(ctx context.Context, dest, url, pin string) (err error) {
 		return fmt.Errorf("qt: %w", err)
 	}
 	ok = true
+	slog.Info("Verified the Qt archive checksum")
 	return nil
 }
 
@@ -223,7 +270,10 @@ func ExtractFile(ctx context.Context, path, dest string) error {
 	if err != nil {
 		return fmt.Errorf("qt: %w", err)
 	}
-	extractErr := Extract(ctx, f, dest)
+	finish := progress.Begin("Extracting the Qt archive")
+	slog.Debug("qt: extracting", "archive", path, "dest", dest)
+	var files int
+	extractErr := extract(ctx, f, dest, &files)
 	closeErr := f.Close()
 	if extractErr != nil {
 		return extractErr
@@ -231,10 +281,15 @@ func ExtractFile(ctx context.Context, path, dest string) error {
 	if closeErr != nil {
 		return fmt.Errorf("qt: %w", closeErr)
 	}
+	finish(fmt.Sprintf("Extracted the Qt archive: %d files", files))
 	return nil
 }
 
 func Extract(ctx context.Context, r io.Reader, dest string) error {
+	return extract(ctx, r, dest, new(int))
+}
+
+func extract(ctx context.Context, r io.Reader, dest string, regular *int) error {
 	if err := ctx.Err(); err != nil {
 		return fmt.Errorf("qt: %w", err)
 	}
@@ -242,7 +297,7 @@ func Extract(ctx context.Context, r io.Reader, dest string) error {
 	if err != nil {
 		return fmt.Errorf("qt: gzip: %w", err)
 	}
-	err = extractTar(ctx, zr, dest)
+	err = extractTar(ctx, zr, dest, regular)
 	closeErr := zr.Close()
 	if err != nil {
 		return err
@@ -253,7 +308,7 @@ func Extract(ctx context.Context, r io.Reader, dest string) error {
 	return nil
 }
 
-func extractTar(ctx context.Context, r io.Reader, dest string) error {
+func extractTar(ctx context.Context, r io.Reader, dest string, regular *int) error {
 	if err := ctx.Err(); err != nil {
 		return fmt.Errorf("qt: %w", err)
 	}
@@ -298,6 +353,7 @@ func extractTar(ctx context.Context, r io.Reader, dest string) error {
 			if hdr.Size < 0 || hdr.Size > maxExtractBytes || bytes > maxExtractBytes-hdr.Size {
 				return fmt.Errorf("qt: tar exceeds %d bytes", maxExtractBytes)
 			}
+			*regular++
 			if err := writeReg(ctx, tr, target, hdr); err != nil {
 				return err
 			}
@@ -381,7 +437,9 @@ func Validate(ctx context.Context, prefix string) error {
 		if !st.Mode().IsRegular() {
 			return fmt.Errorf("qt: %s is not a regular file", path)
 		}
+		slog.Debug("qt: plugin present", "path", path)
 	}
+	slog.Debug("qt: validated", "prefix", prefix, "version", version)
 	return nil
 }
 

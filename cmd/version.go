@@ -33,6 +33,6 @@ func runVersion(cmd *cobra.Command, _ []string) error {
 	if version == "" {
 		version = "(devel)"
 	}
-	slog.Info("printing the version", "version", version)
+	slog.Debug("resolved the version", "version", version)
 	return emit(cmd, versionJSON{Version: version}, func() error { return writeLines(cmd, []string{version}) })
 }

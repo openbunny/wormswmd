@@ -28,8 +28,14 @@ func TestFuzzWorkflowListsEveryTarget(t *testing.T) {
 	defined := map[string]bool{}
 	fset := token.NewFileSet()
 	err = filepath.WalkDir(".", func(path string, d fs.DirEntry, err error) error {
-		if err != nil || d.IsDir() || !strings.HasSuffix(path, "_test.go") {
+		if err != nil {
 			return err
+		}
+		if d.IsDir() && path != "." && strings.HasPrefix(d.Name(), ".") {
+			return filepath.SkipDir
+		}
+		if d.IsDir() || !strings.HasSuffix(path, "_test.go") {
+			return nil
 		}
 		file, err := parser.ParseFile(fset, path, nil, parser.SkipObjectResolution)
 		if err != nil {

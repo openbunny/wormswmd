@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -33,7 +34,12 @@ func Write(ctx context.Context, app, home, applications, output string) error {
 	if err := ctx.Err(); err != nil {
 		return fmt.Errorf("support: %w", err)
 	}
-	return writeTar(ctx, output, body)
+	if err := writeTar(ctx, output, body); err != nil {
+		return err
+	}
+	slog.Debug("wrote the support report", "output", output, "bytes", len(body))
+	slog.Info("Wrote the support report to " + output)
+	return nil
 }
 
 func report(ctx context.Context, app, home, applications string) ([]byte, error) {

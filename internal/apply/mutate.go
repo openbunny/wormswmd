@@ -15,6 +15,7 @@ import (
 	"github.com/openbunny/wormswmd/internal/configurl"
 	"github.com/openbunny/wormswmd/internal/macho"
 	"github.com/openbunny/wormswmd/internal/plistfix"
+	"github.com/openbunny/wormswmd/internal/progress"
 	"github.com/openbunny/wormswmd/internal/qt"
 	"github.com/openbunny/wormswmd/internal/run"
 	"github.com/openbunny/wormswmd/internal/safe"
@@ -72,10 +73,10 @@ func stageArchive(ctx context.Context, archive, dest, pin string) error {
 	return nil
 }
 
-func planChanges(ctx context.Context, app, prefix string) ([]string, error) {
+func planChanges(ctx context.Context, app string) ([]string, error) {
 	changes := []string{
-		"Build an AGL stub.",
-		"Replace Qt frameworks from " + prefix,
+		"Build the AGL stub library",
+		"Replace the Qt libraries with Qt " + qt.Series,
 	}
 	for _, root := range configRoots(app) {
 		for _, name := range root.names {
@@ -87,7 +88,7 @@ func planChanges(ctx context.Context, app, prefix string) ([]string, error) {
 				continue
 			}
 			if _, n := configurl.Rewrite(string(data)); n > 0 {
-				changes = append(changes, "Rewrite "+filepath.Base(name))
+				changes = append(changes, "Switch the web addresses in "+filepath.Base(name)+" to HTTPS")
 			}
 		}
 	}
@@ -96,9 +97,9 @@ func planChanges(ctx context.Context, app, prefix string) ([]string, error) {
 		return nil, err
 	}
 	for _, key := range keys {
-		changes = append(changes, "Set Info.plist "+key)
+		changes = append(changes, "Set "+key+" in Info.plist")
 	}
-	changes = append(changes, "Rewrite Mach-O install names.", "Ad-hoc sign the app.")
+	changes = append(changes, "Rewrite the library paths inside the game", "Sign the app")
 	return changes, nil
 }
 
@@ -109,50 +110,53 @@ func mutate(ctx context.Context, app, prefix, aglBin string, ex run.Exec) ([]str
 	if err := refuseEscape(app); err != nil {
 		return nil, err
 	}
-	slog.Info("replacing Qt frameworks", "app", app)
+	replaced := progress.Begin("Replacing the Qt libraries in the app")
+	slog.Debug("replacing Qt frameworks", "app", app)
 	if err := copyFrameworks(ctx, app, prefix); err != nil {
 		return nil, err
 	}
-	slog.Info("copying Qt dependency libraries", "app", app)
+	slog.Debug("copying Qt dependency libraries", "app", app)
 	if err := copyDylibs(ctx, app, prefix); err != nil {
 		return nil, err
 	}
-	slog.Info("removing leftover Qt plug-ins", "app", app)
+	slog.Debug("removing leftover Qt plug-ins", "app", app)
 	if err := removePlugInDirs(app); err != nil {
 		return nil, err
 	}
-	slog.Info("copying libqcocoa.dylib", "app", app)
+	slog.Debug("copying libqcocoa.dylib", "app", app)
 	if err := copyPlugIn(ctx, app, prefix, filepath.Join("platforms", "libqcocoa.dylib")); err != nil {
 		return nil, err
 	}
-	slog.Info("copying Qt image format plug-ins", "app", app)
+	slog.Debug("copying Qt image format plug-ins", "app", app)
 	if err := copyImageFormats(ctx, app, prefix); err != nil {
 		return nil, err
 	}
-	slog.Info("installing the AGL stub", "app", app)
+	replaced("Replaced the Qt libraries")
+	slog.Debug("installing the AGL stub", "app", app)
 	if err := installAGL(ctx, app, aglBin); err != nil {
 		return nil, err
 	}
-	slog.Info("rewriting config URLs", "app", app)
+	slog.Debug("rewriting config URLs", "app", app)
 	if err := rewriteConfigs(app); err != nil {
 		return nil, err
 	}
-	slog.Info("writing Info.plist", "app", app)
+	slog.Info("Updating the app's Info.plist")
 	if err := writePlist(ctx, app); err != nil {
 		return nil, err
 	}
-	slog.Info("rewriting Mach-O install names", "app", app)
+	slog.Debug("rewriting Mach-O install names", "app", app)
 	warnings, err := macho.Rewrite(ctx, app, ex)
 	if err != nil {
 		return nil, fmt.Errorf("apply: %w", err)
 	}
-	slog.Info("signing the app", "app", app)
+	signed := progress.Begin("Signing the app")
 	if _, err := ex(ctx, "codesign", "--force", "--deep", "--sign", "-", app); err != nil {
 		return nil, fmt.Errorf("apply: %w", err)
 	}
 	if _, err := ex(ctx, "codesign", "--verify", "--deep", "--strict", app); err != nil {
 		return nil, fmt.Errorf("apply: %w", err)
 	}
+	signed("Signed the app")
 	return warnings, nil
 }
 
