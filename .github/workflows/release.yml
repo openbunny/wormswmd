@@ -1,0 +1,87 @@
+name: release
+on:
+  push:
+    tags: ['v*']
+  pull_request:
+permissions: {}
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  ci:
+    name: CI
+    if: github.ref_type == 'tag'
+    permissions:
+      contents: read
+    uses: ./.github/workflows/ci.yml # zizmor: ignore[self-repository] actionlint rejects the $/ form
+  security:
+    name: Security
+    if: github.ref_type == 'tag'
+    permissions:
+      contents: read
+    uses: ./.github/workflows/security.yml # zizmor: ignore[self-repository] actionlint rejects the $/ form
+  gitleaks:
+    name: Gitleaks
+    if: github.ref_type == 'tag'
+    permissions:
+      contents: read
+    uses: ./.github/workflows/gitleaks.yml # zizmor: ignore[self-repository] actionlint rejects the $/ form
+  reuse:
+    name: REUSE
+    if: github.ref_type == 'tag'
+    permissions:
+      contents: read
+    uses: ./.github/workflows/reuse.yml # zizmor: ignore[self-repository] actionlint rejects the $/ form
+  snapshot:
+    name: Snapshot
+    if: github.event_name == 'pull_request'
+    permissions:
+      contents: read
+    runs-on: macos-26
+    timeout-minutes: 20
+    env:
+      HOMEBREW_TAP_GITHUB_TOKEN: ''
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+        with:
+          go-version-file: go.mod
+          cache: false
+      - uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
+        with:
+          cache: false
+      - name: snapshot
+        run: just snapshot
+  release:
+    name: Release
+    if: github.ref_type == 'tag'
+    needs: [ci, security, gitleaks, reuse]
+    permissions:
+      contents: write # publish the release
+      id-token: write # keyless cosign signing
+    runs-on: macos-26
+    timeout-minutes: 30
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+        with:
+          go-version-file: go.mod
+          cache: false
+      - uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
+        with:
+          cache: false
+      - name: release
+        run: goreleaser release --clean
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: homebrew-cask
+          path: dist/homebrew/
+          if-no-files-found: error
