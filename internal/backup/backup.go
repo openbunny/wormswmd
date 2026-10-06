@@ -1006,7 +1006,7 @@ func linkCount(info fs.FileInfo) (uint64, error) {
 	if !ok {
 		return 0, fmt.Errorf("backup: stat is %T", info.Sys())
 	}
-	return uint64(stat.Nlink), nil
+	return uint64(stat.Nlink), nil //nolint:unconvert // Stat_t.Nlink is uint16 on darwin and uint64 on linux.
 }
 
 func executablePath(dir string) string {

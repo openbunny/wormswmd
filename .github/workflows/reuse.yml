@@ -5,7 +5,7 @@ on:
   pull_request:
 permissions: {}
 concurrency:
-  group: reuse-${{ github.ref }}
+  group: reuse-caller-${{ github.ref }}
   cancel-in-progress: true
 jobs:
   reuse:
