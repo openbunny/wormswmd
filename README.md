@@ -81,7 +81,7 @@ wormswmd restore --backup ~/Documents/WormsWMD-Backup-YYYYMMDD-HHMMSS
 
 `--backup` is required. `restore` copies the backed-up files over the app and prints one line naming the restored app and the backup it came from. It restores app files only. It does not undo the quarantine attribute removal or the deleted window settings. It restores the app path recorded in the backup. `--app` names a different app, and `--force` is required when that path differs from the recorded one.
 
-Back up saves with `wormswmd saves backup`. It writes `~/Documents/WormsWMD-SaveBackups/WormsWMD-SaveBackup-YYYYMMDD-HHMMSS` (time in UTC) and prints the path. `wormswmd saves list` prints every save backup. `wormswmd saves restore --dir PATH` first backs up the current saves to a new save backup and prints its path, then restores the saves from `PATH`. It fails when `PATH` contains neither a `Team17` directory nor a Steam id directory.
+Back up saves with `wormswmd saves backup`. It writes `~/Documents/WormsWMD-SaveBackups/WormsWMD-SaveBackup-YYYYMMDD-HHMMSS` (time in UTC) and prints the path. `wormswmd saves list` prints every save backup. `wormswmd saves restore --dir PATH` first backs up the current saves to a new save backup and prints its path, then restores the saves from `PATH`. It fails when `PATH` contains neither a `Team17` directory nor a Steam id directory. When Steam is installed but has no `userdata` directory yet, the restore creates it. When Steam is not installed, the restore skips the Steam saves with a warning and restores the Team17 saves; a backup that holds only Steam saves fails with that reason.
 
 ## Risks
 

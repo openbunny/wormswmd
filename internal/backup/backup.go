@@ -262,40 +262,40 @@ func Verify(ctx context.Context, dir string) error {
 	return nil
 }
 
-func Restore(ctx context.Context, dir, app string, force bool) error {
+func Restore(ctx context.Context, dir, app string, force bool) (string, error) {
 	if err := ctx.Err(); err != nil {
-		return fmt.Errorf("backup: %w", err)
+		return "", fmt.Errorf("backup: %w", err)
 	}
 	done := progress.Begin("Restoring Worms W.M.D from the backup")
 	if err := Verify(ctx, dir); err != nil {
-		return err
+		return "", err
 	}
 	meta, err := loadMetadata(dir)
 	if err != nil {
-		return err
+		return "", err
 	}
 	if app == "" {
 		app = meta.appPath
 	}
 	if app == "" {
-		return errors.New("backup: game_app_path is empty; pass --app")
+		return "", errors.New("backup: game_app_path is empty; pass --app")
 	}
 	if meta.appPath != app && !force {
-		return fmt.Errorf("backup: game_app_path %s differs from %s; pass --force", meta.appPath, app)
+		return "", fmt.Errorf("backup: game_app_path %s differs from %s; pass --force", meta.appPath, app)
 	}
 	plan, err := buildPlan(dir, meta)
 	if err != nil {
-		return err
+		return "", err
 	}
 	if err := destinationChecks(app, plan); err != nil {
-		return err
+		return "", err
 	}
 	copied, err := restoreInto(ctx, dir, app, plan)
 	if err != nil {
-		return err
+		return "", err
 	}
 	done("Restored Worms W.M.D: " + copied.String())
-	return nil
+	return app, nil
 }
 
 func backupPath(home, explicit string, now time.Time) string {

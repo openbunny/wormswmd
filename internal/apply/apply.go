@@ -182,7 +182,7 @@ func Run(ctx context.Context, opt Options) (result Result, err error) {
 		slog.Error("Fixing Worms W.M.D failed; restoring the app from the backup", "backup", backupDir, "err", mutErr)
 		restoreCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), restoreTimeout)
 		defer cancel()
-		rerr := backup.Restore(restoreCtx, backupDir, app, false)
+		_, rerr := backup.Restore(restoreCtx, backupDir, app, false)
 		if rerr != nil {
 			slog.Error("Restoring Worms W.M.D failed; run wormswmd restore --backup with the backup directory to restore the app", "backup", backupDir, "err", rerr)
 			rerr = fmt.Errorf("apply: %w", rerr)

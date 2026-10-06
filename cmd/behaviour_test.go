@@ -54,9 +54,6 @@ func TestRestoredLine(t *testing.T) {
 	if got, want := restoredLine("/Games/Worms W.M.D.app", "/backup"), "Restored /Games/Worms W.M.D.app from the backup /backup."; got != want {
 		t.Fatalf("restoredLine = %q, want %q", got, want)
 	}
-	if got := restoredLine("", "/backup"); !strings.Contains(got, "/backup") {
-		t.Fatalf("restoredLine = %q", got)
-	}
 }
 
 func TestSavesRestorePrintsPriorBackup(t *testing.T) {

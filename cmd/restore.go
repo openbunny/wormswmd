@@ -24,9 +24,6 @@ func newRestore() *cobra.Command {
 }
 
 func restoredLine(app, dir string) string {
-	if app == "" {
-		return fmt.Sprintf("Restored the app recorded in the backup %s.", dir)
-	}
 	return fmt.Sprintf("Restored %s from the backup %s.", app, dir)
 }
 
@@ -43,7 +40,8 @@ func runRestore(cmd *cobra.Command, _ []string) error {
 	if err != nil {
 		return failure(fmt.Errorf("flag --force: %w", err))
 	}
-	if err := backup.Restore(cmd.Context(), dir, app, force); err != nil {
+	app, err = backup.Restore(cmd.Context(), dir, app, force)
+	if err != nil {
 		return failure(err)
 	}
 	return emit(cmd, map[string]string{"backup": dir, "app": app}, func() error {

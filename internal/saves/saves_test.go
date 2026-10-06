@@ -246,3 +246,54 @@ func TestRestoreStopsWhenPriorBackupFails(t *testing.T) {
 		t.Fatalf("team = %q, %v", got, readErr)
 	}
 }
+
+func TestRestoreWithoutSteamUserdata(t *testing.T) {
+	cases := []struct {
+		name      string
+		steam     bool
+		wantSteam bool
+	}{
+		{name: "steam without userdata", steam: true, wantSteam: true},
+		{name: "no steam", steam: false, wantSteam: false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			source, _, _ := fixtureHome(t)
+			dir, err := Backup(t.Context(), source, time.Time{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			home := t.TempDir()
+			support := filepath.Join(home, "Library", "Application Support")
+			mkdir(t, support)
+			if tc.steam {
+				mkdir(t, filepath.Join(support, "Steam"))
+			}
+			if _, err := Restore(t.Context(), home, dir, time.Time{}); err != nil {
+				t.Fatalf("Restore = %v", err)
+			}
+			if body, err := os.ReadFile(filepath.Join(support, "Team17", "save")); err != nil || string(body) != "original" {
+				t.Fatalf("Team17 save = %q, %v", body, err)
+			}
+			slot := filepath.Join(support, "Steam", "userdata", "42", game.SteamAppID, "slot")
+			_, statErr := os.Stat(slot)
+			if (statErr == nil) != tc.wantSteam {
+				t.Fatalf("Steam save present = %v, want %v", statErr == nil, tc.wantSteam)
+			}
+		})
+	}
+}
+
+func TestRestoreSteamOnlyWithoutSteam(t *testing.T) {
+	source := t.TempDir()
+	mkdir(t, filepath.Join(source, "Library", "Application Support", "Steam", "userdata", "42", game.SteamAppID))
+	write(t, filepath.Join(source, "Library", "Application Support", "Steam", "userdata", "42", game.SteamAppID, "slot"), "steam")
+	dir, err := Backup(t.Context(), source, time.Time{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	home := t.TempDir()
+	if _, err := Restore(t.Context(), home, dir, time.Time{}); err == nil || !strings.Contains(err.Error(), "Steam is not installed") {
+		t.Fatalf("Restore = %v", err)
+	}
+}

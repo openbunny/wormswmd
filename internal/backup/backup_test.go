@@ -95,7 +95,7 @@ func TestCreateVerifyRestore(t *testing.T) {
 	if err := os.Mkdir(sig, testDirMode); err != nil {
 		t.Fatal(err)
 	}
-	if err := Restore(ctx, dir, app, false); err != nil {
+	if _, err := Restore(ctx, dir, app, false); err != nil {
 		t.Fatal(err)
 	}
 	got, err := os.ReadFile(plistPath)
@@ -113,8 +113,12 @@ func TestRestoreUsesMetadataPathWhenAppEmpty(t *testing.T) {
 	ctx := t.Context()
 	app, dir := newBackup(t)
 	exe := mutateExe(t, app)
-	if err := Restore(ctx, dir, "", false); err != nil {
+	restored, err := Restore(ctx, dir, "", false)
+	if err != nil {
 		t.Fatal(err)
+	}
+	if restored != app {
+		t.Fatalf("Restore = %q, want the recorded app %q", restored, app)
 	}
 	body, err := os.ReadFile(exe)
 	if err != nil {
@@ -131,7 +135,7 @@ func TestRestoreRejectsEmptyPath(t *testing.T) {
 	setAppPath(t, dir, "")
 	exe := mutateExe(t, app)
 	t.Chdir(t.TempDir())
-	if err := Restore(ctx, dir, "", true); err == nil {
+	if _, err := Restore(ctx, dir, "", true); err == nil {
 		t.Fatal("Restore accepted an empty path")
 	}
 	assertAbsent(t, "Contents")
@@ -150,7 +154,7 @@ func TestRestoreForceWhenAppPathDiffers(t *testing.T) {
 	other := filepath.Join(t.TempDir(), "Elsewhere.app")
 	setAppPath(t, dir, other)
 	exe := mutateExe(t, app)
-	err := Restore(ctx, dir, app, false)
+	_, err := Restore(ctx, dir, app, false)
 	if err == nil || !strings.Contains(err.Error(), "pass --force") || !strings.Contains(err.Error(), app) || !strings.Contains(err.Error(), other) {
 		t.Fatalf("Restore = %v", err)
 	}
@@ -161,7 +165,7 @@ func TestRestoreForceWhenAppPathDiffers(t *testing.T) {
 	if string(body) != "mutated" {
 		t.Fatalf("executable = %q", body)
 	}
-	if err := Restore(ctx, dir, app, true); err != nil {
+	if _, err := Restore(ctx, dir, app, true); err != nil {
 		t.Fatal(err)
 	}
 	body, err = os.ReadFile(exe)
@@ -207,7 +211,7 @@ func TestRelativeSymlinkRoundTrip(t *testing.T) {
 	if err := os.Remove(link); err != nil {
 		t.Fatal(err)
 	}
-	if err := Restore(ctx, dir, app, false); err != nil {
+	if _, err := Restore(ctx, dir, app, false); err != nil {
 		t.Fatal(err)
 	}
 	gotLink, err = os.Readlink(link)
@@ -226,7 +230,7 @@ func TestRestoreLeavesAppWhenLaterTreeCannotCopy(t *testing.T) {
 	if err := writeManifest(ctx, dir); err != nil {
 		t.Fatal(err)
 	}
-	err := Restore(ctx, dir, app, false)
+	_, err := Restore(ctx, dir, app, false)
 	if err == nil {
 		t.Fatal("Restore accepted an absolute symlink")
 	}
@@ -255,7 +259,7 @@ func TestRestoreRejectsEscapingContents(t *testing.T) {
 	if err := os.Symlink(outside, contents); err != nil {
 		t.Fatal(err)
 	}
-	if err := Restore(ctx, dir, app, false); err == nil {
+	if _, err := Restore(ctx, dir, app, false); err == nil {
 		t.Fatal("Restore followed Contents")
 	}
 	body, err := os.ReadFile(marker)
@@ -279,7 +283,7 @@ func TestRestoreReplacesPlistSymlink(t *testing.T) {
 	if err := os.Symlink(outside, plist); err != nil {
 		t.Fatal(err)
 	}
-	if err := Restore(ctx, dir, app, false); err != nil {
+	if _, err := Restore(ctx, dir, app, false); err != nil {
 		t.Fatal(err)
 	}
 	info, err := os.Lstat(plist)
@@ -642,7 +646,7 @@ func TestAbortRemovesFreshPastFailure(t *testing.T) {
 	exe := mutateExe(t, app)
 	frameworks := filepath.Join(app, dirContents, dirFrameworks)
 	setImmutable(t, frameworks)
-	err := Restore(ctx, dir, app, false)
+	_, err := Restore(ctx, dir, app, false)
 	if err == nil {
 		t.Fatal("Restore succeeded")
 	}
@@ -686,7 +690,7 @@ func TestPriorRenameKeepsBothCopies(t *testing.T) {
 		}
 		return orig(oldpath, newpath)
 	}
-	restoreErr := Restore(ctx, dir, app, false)
+	_, restoreErr := Restore(ctx, dir, app, false)
 	if restoreErr == nil {
 		t.Fatal("Restore succeeded")
 	}
@@ -729,7 +733,7 @@ func TestRestoreRemovesSignatureBeforeSpares(t *testing.T) {
 	if err := os.Mkdir(sig, testDirMode); err != nil {
 		t.Fatal(err)
 	}
-	err := Restore(ctx, dir, app, false)
+	_, err := Restore(ctx, dir, app, false)
 	if err == nil || !strings.Contains(err.Error(), "remove previous") {
 		t.Fatalf("Restore = %v", err)
 	}
@@ -787,7 +791,7 @@ func TestRestoreUndoesSwapsWhenSignatureFails(t *testing.T) {
 			sig := filepath.Join(app, dirContents, dirCodeSignature)
 			putTree(t, sig, "CodeResources", "sig")
 			tc.inject(t, app, sig)
-			if err := Restore(t.Context(), dir, app, false); err == nil {
+			if _, err := Restore(t.Context(), dir, app, false); err == nil {
 				t.Fatal("Restore succeeded")
 			}
 			body, err := os.ReadFile(exe)

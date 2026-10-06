@@ -112,7 +112,22 @@ func Restore(ctx context.Context, home, dir string, now time.Time) (string, erro
 	if err != nil {
 		return "", fmt.Errorf("saves: %w", err)
 	}
-	userdata := filepath.Join(home, "Library", "Application Support", "Steam", "userdata")
+	steamRoot := filepath.Join(home, "Library", "Application Support", "Steam")
+	userdata := filepath.Join(steamRoot, "userdata")
+	steamSkipped := false
+	if len(ids) > 0 {
+		steamSkipped, err = steamMissing(steamRoot, userdata)
+		if err != nil {
+			return "", err
+		}
+	}
+	if steamSkipped && !restoreTeam {
+		return "", fmt.Errorf("saves: backup %s holds only Steam saves and Steam is not installed; install Steam, sign in once, and run wormswmd saves restore again", dir)
+	}
+	if steamSkipped {
+		slog.Warn("Steam is not installed, so the Steam saves in the backup were not restored; install Steam, sign in once, and run wormswmd saves restore again")
+		ids = nil
+	}
 	dests := make([]string, 0, len(ids))
 	for _, id := range ids {
 		if err := ctx.Err(); err != nil {
@@ -153,6 +168,18 @@ func Restore(ctx context.Context, home, dir string, now time.Time) (string, erro
 	}
 	done("Restored Worms saves: " + copied.String())
 	return prior, nil
+}
+
+func steamMissing(steamRoot, userdata string) (bool, error) {
+	if _, err := os.Stat(steamRoot); errors.Is(err, os.ErrNotExist) {
+		return true, nil
+	} else if err != nil {
+		return false, fmt.Errorf("saves: %w", err)
+	}
+	if err := os.MkdirAll(userdata, sharedDirMode); err != nil {
+		return false, fmt.Errorf("saves: %w", err)
+	}
+	return false, nil
 }
 
 func withPrior(err error, prior string) error {
