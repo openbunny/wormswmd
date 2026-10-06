@@ -36,7 +36,7 @@ signs:
 homebrew_casks:
   - name: wormswmd
     homepage: https://github.com/openbunny/wormswmd
-    description: Fixes for Worms W.M.D on macOS
+    description: Patches Worms W.M.D so the game opens again
     license: MIT
     directory: Casks
     commit_author:
