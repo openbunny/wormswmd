@@ -92,7 +92,7 @@ func Build(ctx context.Context, dest string, exec run.Exec) (string, error) {
 			}
 		}
 		slog.Debug("agl: built", "sdk", sdk, "output", out)
-		finish("Built the AGL stub library for Intel and Apple silicon")
+		finish("Built the AGL stub library for x86_64 and arm64")
 		return out, nil
 	}
 	return "", fmt.Errorf("agl: no installed macOS SDK built both slices: %w", last)

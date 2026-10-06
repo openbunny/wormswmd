@@ -23,13 +23,13 @@ Worms W.M.D does not open on macOS 26. Apple removed the AGL binary that the gam
 
 ## Requirements
 
-- macOS 26 or later on Apple silicon or Intel. On Apple silicon the game needs Rosetta, because it is an x86_64 app. `wormswmd fix --install-rosetta` installs Rosetta when it is absent.
+- macOS 26 or later on an Apple silicon Mac. The game is an x86_64 app, so it needs Rosetta. `wormswmd fix --install-rosetta` installs Rosetta when it is absent.
 - The Xcode Command Line Tools: `xcode-select --install`. `fix` and `apply` run `clang`, `otool`, `install_name_tool` and `codesign` from them, and stop before any change when `clang` is missing.
 - Go at the version in `go.mod`, only for `go install` or a build from source. Building with `just build` also needs `just` and `git`. Homebrew and the release archives need no Go.
 
 ## Install
 
-Release binaries exist for `darwin/amd64` and `darwin/arm64`. They are not notarized.
+Release binaries exist for `darwin/arm64` (Apple silicon) only. They are not notarized.
 
 ### Homebrew
 
@@ -41,7 +41,7 @@ The cask installs the binary and removes its `com.apple.quarantine` attribute.
 
 ### Release archive
 
-1. Download `wormswmd_VERSION_darwin_ARCH.tar.gz`, `checksums.txt` and `checksums.txt.bundle` from the [latest release](https://github.com/openbunny/wormswmd/releases/latest). `ARCH` is `arm64` on Apple silicon and `amd64` on Intel.
+1. Download `wormswmd_VERSION_darwin_arm64.tar.gz`, `checksums.txt` and `checksums.txt.bundle` from the [latest release](https://github.com/openbunny/wormswmd/releases/latest).
 2. Verify the signature of `checksums.txt`. This needs [cosign](https://docs.sigstore.dev/cosign/system_config/installation/):
 
    ```console
@@ -60,7 +60,7 @@ The cask installs the binary and removes its `com.apple.quarantine` attribute.
 4. Extract the archive and remove the quarantine attribute, because the binary is not notarized and Gatekeeper blocks it otherwise:
 
    ```console
-   tar -xzf wormswmd_VERSION_darwin_ARCH.tar.gz wormswmd
+   tar -xzf wormswmd_VERSION_darwin_arm64.tar.gz wormswmd
    xattr -d com.apple.quarantine wormswmd
    ```
 

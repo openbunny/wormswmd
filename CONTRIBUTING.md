@@ -39,8 +39,8 @@ The workflow:
 
 1. Re-runs `ci.yml`, `security.yml`, `gitleaks.yml` and `reuse.yml` through `workflow_call`.
 2. Starts the release job only when all four pass. The job runs `goreleaser release --clean` with `GITHUB_TOKEN`, configured in `.goreleaser.yaml`.
-3. Builds `darwin/amd64` and `darwin/arm64` binaries with `CGO_ENABLED=0` and `-trimpath`, and stamps `cmd.buildVersion` with the tag.
-4. Packs each binary with `LICENSE`, `NOTICE` and `LICENSES/*` in `wormswmd_VERSION_darwin_ARCH.tar.gz`, writes a CycloneDX SBOM for each archive with `syft`, and writes `checksums.txt`.
+3. Builds a `darwin/arm64` binary with `CGO_ENABLED=0` and `-trimpath`, and stamps `cmd.buildVersion` with the tag.
+4. Packs the binary with `LICENSE`, `NOTICE` and `LICENSES/*` in `wormswmd_VERSION_darwin_arm64.tar.gz`, writes a CycloneDX SBOM for the archive with `syft`, and writes `checksums.txt`.
 5. Signs `checksums.txt` with keyless `cosign` through GitHub Actions OIDC, which produces `checksums.txt.bundle`. See [SECURITY.md](SECURITY.md#release-artifacts).
 6. Publishes the GitHub release for the tag and generates the Homebrew cask `Casks/wormswmd.rb`.
 
