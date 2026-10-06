@@ -7,6 +7,7 @@ import (
 	"errors"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -24,15 +25,21 @@ func TestCheckExit(t *testing.T) {
 		t.Fatalf("game.Scaffold: %v", err)
 	}
 	cases := []struct {
-		name string
-		app  string
-		code int
+		name      string
+		app       string
+		code      int
+		needsTool string
 	}{
 		{name: "missing", app: filepath.Join(t.TempDir(), "missing.app"), code: 1},
-		{name: "scaffold", app: scaffold, code: 2},
+		{name: "scaffold", app: scaffold, code: 2, needsTool: "codesign"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
+			if tc.needsTool != "" {
+				if _, err := exec.LookPath(tc.needsTool); err != nil {
+					t.Skipf("check reports not ready only where %s exists, which is macOS", tc.needsTool)
+				}
+			}
 			root := New()
 			var out bytes.Buffer
 			root.SetOut(&out)
