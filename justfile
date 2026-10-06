@@ -8,6 +8,9 @@ default:
 build:
     go build -ldflags "-X github.com/openbunny/wormswmd/cmd.buildVersion=$(git describe --tags --always --dirty)" -o wormswmd .
 
+snapshot:
+    goreleaser release --snapshot --clean --skip=sign
+
 fmt:
     golangci-lint fmt
     clang-format -i {{ c_files }}
