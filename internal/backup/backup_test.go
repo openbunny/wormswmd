@@ -13,7 +13,6 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
-	"syscall"
 	"testing"
 	"time"
 
@@ -22,11 +21,9 @@ import (
 )
 
 const (
-	ufImmutable    = 0x2
-	clearUserFlags = 0
-	testDirMode    = 0o755
-	testFileMode   = 0o644
-	testExecMode   = 0o755
+	testDirMode  = 0o755
+	testFileMode = 0o644
+	testExecMode = 0o755
 )
 
 func TestCreateVerifyRestore(t *testing.T) {
@@ -640,6 +637,7 @@ func FuzzManifest(f *testing.F) {
 }
 
 func TestAbortRemovesFreshPastFailure(t *testing.T) {
+	requireChflags(t)
 	ctx := t.Context()
 	app, dir := newBackup(t)
 	releaseImmutable(t, app)
@@ -722,6 +720,7 @@ func TestPriorRenameKeepsBothCopies(t *testing.T) {
 }
 
 func TestRestoreRemovesSignatureBeforeSpares(t *testing.T) {
+	requireChflags(t)
 	ctx := t.Context()
 	app, dir := newBackup(t)
 	releaseImmutable(t, app)
@@ -760,6 +759,7 @@ func TestRestoreRemovesSignatureBeforeSpares(t *testing.T) {
 }
 
 func TestRestoreUndoesSwapsWhenSignatureFails(t *testing.T) {
+	requireChflags(t)
 	for _, tc := range []struct {
 		name   string
 		inject func(t *testing.T, app, sig string)
@@ -816,6 +816,7 @@ func TestRestoreUndoesSwapsWhenSignatureFails(t *testing.T) {
 }
 
 func TestUndoKeepsReplacementWhenPriorRenameFails(t *testing.T) {
+	requireChflags(t)
 	root := t.TempDir()
 	releaseImmutable(t, root)
 	dst := filepath.Join(root, "Frameworks")
@@ -1100,28 +1101,6 @@ func setAppPath(t *testing.T, dir, path string) {
 	if err := writeManifest(t.Context(), dir); err != nil {
 		t.Fatal(err)
 	}
-}
-
-func setImmutable(t *testing.T, path string) {
-	t.Helper()
-	if err := syscall.Chflags(path, ufImmutable); err != nil {
-		t.Fatal(err)
-	}
-}
-
-func releaseImmutable(t *testing.T, root string) {
-	t.Helper()
-	t.Cleanup(func() {
-		err := filepath.WalkDir(root, func(path string, _ os.DirEntry, err error) error {
-			if err != nil {
-				return err
-			}
-			return syscall.Chflags(path, clearUserFlags)
-		})
-		if err != nil {
-			t.Errorf("release immutable %s: %v", root, err)
-		}
-	})
 }
 
 func prefixedPaths(t *testing.T, root, prefix string) []string {

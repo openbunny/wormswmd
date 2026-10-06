@@ -14,4 +14,4 @@ pinact = "5.0.0"
 yamlfmt = "0.21.0"
 "pipx:yamllint" = "1.38.0"
 taplo = "0.10.0"
-"pipx:reuse" = "6.2.0"
+"pipx:reuse" = { version = "6.2.0", extras = "charset-normalizer" }

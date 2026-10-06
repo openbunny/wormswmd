@@ -16,7 +16,7 @@ func freeBytes(path string) (uint64, error) {
 	if err := syscall.Statfs(path, &st); err != nil {
 		return 0, fmt.Errorf("apply: statfs %s: %w", path, err)
 	}
-	signed := int64(st.Bsize)
+	signed := int64(st.Bsize) //nolint:unconvert // Statfs_t.Bsize is uint32 on darwin and int64 on linux.
 	if signed <= 0 {
 		return 0, fmt.Errorf("apply: statfs block size is %d bytes", signed)
 	}
