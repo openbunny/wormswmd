@@ -10,16 +10,10 @@ concurrency:
   cancel-in-progress: true
 jobs:
   check:
-    name: Check ${{ matrix.os }}
+    name: Check macos-26
     permissions:
       contents: read
-    strategy:
-      fail-fast: false
-      matrix:
-        os:
-          - 'ubuntu-24.04'
-          - 'macos-26'
-    runs-on: ${{ matrix.os }}
+    runs-on: macos-26
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
@@ -31,10 +25,6 @@ jobs:
           cache: false
       - uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
       - name: install cppcheck
-        if: runner.os == 'Linux'
-        run: sudo apt-get install --yes cppcheck
-      - name: install cppcheck
-        if: runner.os == 'macOS'
         run: brew install cppcheck
       - name: check
         run: 'just check'
