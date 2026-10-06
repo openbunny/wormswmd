@@ -25,15 +25,58 @@ Worms W.M.D does not open on macOS 26. Apple removed the AGL binary that the gam
 
 - macOS 26 or later on Apple silicon or Intel. On Apple silicon the game needs Rosetta, because it is an x86_64 app. `wormswmd fix --install-rosetta` installs Rosetta when it is absent.
 - The Xcode Command Line Tools: `xcode-select --install`. `fix` and `apply` run `clang`, `otool`, `install_name_tool` and `codesign` from them, and stop before any change when `clang` is missing.
-- Go at the version in `go.mod`, to install or build `wormswmd`. Building with `just build` also needs `just` and `git`.
+- Go at the version in `go.mod`, only for `go install` or a build from source. Building with `just build` also needs `just` and `git`. Homebrew and the release archives need no Go.
 
 ## Install
+
+Release binaries exist for `darwin/amd64` and `darwin/arm64`. They are not notarized.
+
+### Homebrew
+
+```console
+brew install --cask oa/tap/wormswmd
+```
+
+The cask installs the binary and removes its `com.apple.quarantine` attribute.
+
+### Release archive
+
+1. Download `wormswmd_VERSION_darwin_ARCH.tar.gz`, `checksums.txt` and `checksums.txt.bundle` from the [latest release](https://github.com/openbunny/wormswmd/releases/latest). `ARCH` is `arm64` on Apple silicon and `amd64` on Intel.
+2. Verify the signature of `checksums.txt`. This needs [cosign](https://docs.sigstore.dev/cosign/system_config/installation/):
+
+   ```console
+   cosign verify-blob --bundle checksums.txt.bundle \
+     --certificate-identity-regexp '^https://github.com/openbunny/wormswmd/.github/workflows/release.yml@refs/tags/v' \
+     --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+     checksums.txt
+   ```
+
+3. Verify the archive against `checksums.txt`. The command prints `OK` for the archive you downloaded and fails for a mismatch; `--ignore-missing` skips the archives you did not download:
+
+   ```console
+   shasum -a 256 --check --ignore-missing checksums.txt
+   ```
+
+4. Extract the archive and remove the quarantine attribute, because the binary is not notarized and Gatekeeper blocks it otherwise:
+
+   ```console
+   tar -xzf wormswmd_VERSION_darwin_ARCH.tar.gz wormswmd
+   xattr -d com.apple.quarantine wormswmd
+   ```
+
+   `xattr` reports `No such xattr` when the download did not set the attribute; that is not an error.
+
+5. Move `wormswmd` to a directory on `PATH`, for example `/usr/local/bin`.
+
+### go install
 
 ```console
 go install github.com/openbunny/wormswmd@latest
 ```
 
-This writes `wormswmd` to the directory `go env GOBIN` prints, or to `$(go env GOPATH)/bin` when that is empty. Add that directory to `PATH`.
+This needs Go. It writes `wormswmd` to the directory `go env GOBIN` prints, or to `$(go env GOPATH)/bin` when that is empty. Add that directory to `PATH`. The binary built this way reports the module version from the build information.
+
+### Build from source
 
 To build from a checkout:
 
