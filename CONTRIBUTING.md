@@ -6,6 +6,7 @@
 - [Gate](#gate)
 - [Logging](#logging)
 - [Version](#version)
+- [Releasing](#releasing)
 - [Commits and pull requests](#commits-and-pull-requests)
 - [Developer Certificate of Origin](#developer-certificate-of-origin)
 - [Reporting bugs](#reporting-bugs)
@@ -25,6 +26,31 @@ Progress goes to stderr through `charm.land/log` as the `log/slog` handler; stdo
 ## Version
 
 `just build` sets `cmd.buildVersion` to the output of `git describe --tags --always --dirty`. A build that does not set it prints the module version from the build information, or `(devel)` when that is empty.
+
+## Releasing
+
+A release is a signed tag. Pushing a tag that matches `v*` starts `.github/workflows/release.yml`.
+
+1. Merge the changes to `main` and confirm `just check` passes.
+2. Create a signed tag: `git-bot tag -s vX.Y.Z -m "vX.Y.Z"`. Agents use `git-bot`; the owner uses `git tag -s`.
+3. Push the tag: `git push origin vX.Y.Z`.
+
+The workflow:
+
+1. Re-runs `ci.yml`, `security.yml`, `gitleaks.yml` and `reuse.yml` through `workflow_call`.
+2. Starts the release job only when all four pass. The job runs `goreleaser release --clean` with `GITHUB_TOKEN`, configured in `.goreleaser.yaml`.
+3. Builds `darwin/amd64` and `darwin/arm64` binaries with `CGO_ENABLED=0` and `-trimpath`, and stamps `cmd.buildVersion` with the tag.
+4. Packs each binary with `LICENSE`, `NOTICE` and `LICENSES/*` in `wormswmd_VERSION_darwin_ARCH.tar.gz`, writes a CycloneDX SBOM for each archive with `syft`, and writes `checksums.txt`.
+5. Signs `checksums.txt` with keyless `cosign` through GitHub Actions OIDC, which produces `checksums.txt.bundle`. See [SECURITY.md](SECURITY.md#release-artifacts).
+6. Publishes the GitHub release for the tag and generates the Homebrew cask `Casks/wormswmd.rb`.
+
+The cask reaches `OA/homebrew-tap` automatically only when the `HOMEBREW_TAP_GITHUB_TOKEN` repository secret exists. The token needs write access to the contents of that repository. Without the secret, the workflow skips the upload. In both cases it attaches `dist/homebrew/` to the workflow run as the `homebrew-cask` artifact, and a maintainer commits `Casks/wormswmd.rb` from it to the tap by hand.
+
+On a pull request, the workflow runs `goreleaser release --snapshot --clean --skip=sign`. It builds everything except the signature and publishes nothing.
+
+GoReleaser changes only the release for the pushed tag. The Qt archive stays an asset of the `v0.1.0` release; see [Network](README.md#network).
+
+To run the snapshot locally: `mise exec -- goreleaser release --snapshot --clean --skip=sign`. The output is in `dist/`.
 
 ## Commits and pull requests
 
