@@ -1,0 +1,16 @@
+name: scorecard
+on:
+  workflow_dispatch:
+permissions: {}
+concurrency:
+  group: scorecard-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  scorecard:
+    name: Scorecard
+    permissions:
+      contents: read
+      id-token: write # mints the OIDC token the scorecard action signs results with
+    uses: openbunny/.github/.github/workflows/reusable-scorecard.yml@2050692900f7dcd883e416ebee37a1b97b119203 # v0.3.0
+    with:
+      publish: false # publishing requires a public repository

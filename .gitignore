@@ -1,0 +1,9 @@
+/wormswmd
+/dist/
+coverage.*
+*.cover
+*.out
+.lsp/
+.ruby-lsp/
+.expert/
+.grok/

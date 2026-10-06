@@ -1,0 +1,60 @@
+# Govulncheck and go-licenses fail the job on findings. SARIF upload and
+# CodeQL are omitted: code scanning needs GitHub Advanced Security, which this
+# repository does not have.
+name: Security
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: '0 6 * * 1'
+permissions: {}
+concurrency:
+  group: security-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  govulncheck:
+    name: Govulncheck
+    permissions:
+      contents: read
+    runs-on: ubuntu-24.04
+    env:
+      # renovate: datasource=go depName=golang.org/x/vuln
+      GOVULNCHECK_VERSION: v1.8.0
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+        with:
+          go-version-file: go.mod
+          cache: false
+      - name: go mod verify
+        run: go mod verify
+      - name: go mod tidy -diff
+        run: go mod tidy -diff
+      - name: govulncheck
+        run: go run "golang.org/x/vuln/cmd/govulncheck@${GOVULNCHECK_VERSION}" ./...
+
+  go-licenses:
+    name: Go Licenses
+    permissions:
+      contents: read
+    runs-on: ubuntu-24.04
+    env:
+      # renovate: datasource=go depName=github.com/google/go-licenses/v2
+      GO_LICENSES_VERSION: v2.0.1
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+        with:
+          go-version-file: go.mod
+          cache: false
+      - name: report dependency licenses
+        run: go run "github.com/google/go-licenses/v2@${GO_LICENSES_VERSION}" report ./...
+      - name: check dependency licenses
+        run: go run "github.com/google/go-licenses/v2@${GO_LICENSES_VERSION}" check ./...

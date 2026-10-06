@@ -1,0 +1,2 @@
+MainUrl = "http://www.team17.com/api"
+URL_Internal = "http://xom.team17.com"

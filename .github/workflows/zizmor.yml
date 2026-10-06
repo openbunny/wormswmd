@@ -1,0 +1,18 @@
+# No `paths:` filter: a required check behind a skippable workflow never
+# reports on a pull request outside those paths, and branch protection then
+# waits on it indefinitely.
+name: zizmor
+on:
+  push:
+    branches: [main]
+  pull_request:
+permissions: {}
+concurrency:
+  group: zizmor-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  zizmor:
+    name: Zizmor
+    permissions:
+      contents: read
+    uses: openbunny/.github/.github/workflows/reusable-zizmor.yml@2050692900f7dcd883e416ebee37a1b97b119203 # v0.3.0

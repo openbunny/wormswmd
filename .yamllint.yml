@@ -1,0 +1,8 @@
+extends: default
+ignore: |
+  .github/workflows/
+rules:
+  # yamlfmt owns the document start and removes "---".
+  document-start: disable
+  # yamlfmt owns layout; the long lines are schema URLs and single-line prose.
+  line-length: disable

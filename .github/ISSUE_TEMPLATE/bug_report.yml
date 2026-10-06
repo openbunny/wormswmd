@@ -1,0 +1,72 @@
+# yaml-language-server: $schema=https://json.schemastore.org/github-issue-forms.json
+name: Bug report
+description: A command behaves differently from what it documents
+title: "[bug]: "
+labels: ["type/bug", "status/needs-triage"]
+body:
+  - type: dropdown
+    id: component
+    attributes:
+      label: Component
+      description: The part of wormswmd the bug is in.
+      options:
+        - "apply, preview, restore"
+        - "Qt fetch and framework replacement"
+        - "Mach-O and Info.plist rewriting"
+        - "saves backup and restore"
+        - "check and launch"
+        - "support report"
+        - "Build, toolchain, or install"
+    validations:
+      required: true
+  - type: input
+    id: command
+    attributes:
+      label: Command
+      description: The exact command run, with its flags.
+      placeholder: "wormswmd apply --force"
+    validations:
+      required: true
+  - type: textarea
+    id: observed
+    attributes:
+      label: Observed
+      description: What happened, including any error text and any support report.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected
+      description: What you expected instead.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: The steps run and the state of the app before them, such as whether a backup exists. Do not attach the app bundle or a save; describe what is in it.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: wormswmd version
+      description: The output of `wormswmd version`, or the commit the report applies to.
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: Operating system
+      description: The macOS version and architecture the report applies to.
+      placeholder: "macOS 26.0 arm64"
+    validations:
+      required: true
+  - type: input
+    id: archive
+    attributes:
+      label: Qt archive checksum
+      description: The `PinSHA256` value in `internal/qt` the report was made against.
+    validations:
+      required: false

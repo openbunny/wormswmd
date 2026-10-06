@@ -1,0 +1,8 @@
+{
+  "config": {
+    // Prose is one paragraph per line; prettier owns wrapping and keeps it.
+    "MD013": false,
+  },
+  "globs": ["**/*.md"],
+  "gitignore": true,
+}

@@ -1,0 +1,10 @@
+version = 1
+SPDX-PackageName = "wormswmd"
+SPDX-PackageSupplier = "OpenBunny"
+SPDX-PackageDownloadLocation = "https://github.com/openbunny/wormswmd"
+
+[[annotations]]
+path = "**"
+precedence = "closest"
+SPDX-FileCopyrightText = "2026 OpenBunny"
+SPDX-License-Identifier = "MIT"

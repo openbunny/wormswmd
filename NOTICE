@@ -1,0 +1,11 @@
+The player-facing procedure comes from Chad Boyd's WormsWMD-macOS-Fix
+(https://github.com/cboyd0319/WormsWMD-macOS-Fix). Its terms are the MIT
+License (https://opensource.org/license/mit).
+
+Qt frameworks are downloaded at fetch time. They are LGPL and are not
+vendored in this repository. The Qt LGPL terms are
+https://www.gnu.org/licenses/lgpl-3.0.html and
+https://www.qt.io/licensing/.
+
+The AGL stub is an independent implementation of the removed AGL entry points.
+The archive checksum pin is PinSHA256 in internal/qt.

@@ -1,0 +1,15 @@
+name: gitleaks
+on:
+  push:
+    branches: [main]
+  pull_request:
+permissions: {}
+concurrency:
+  group: gitleaks-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  gitleaks:
+    name: Gitleaks
+    permissions:
+      contents: read
+    uses: openbunny/.github/.github/workflows/reusable-gitleaks.yml@2050692900f7dcd883e416ebee37a1b97b119203 # v0.3.0

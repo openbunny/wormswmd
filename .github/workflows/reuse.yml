@@ -1,0 +1,15 @@
+name: reuse
+on:
+  push:
+    branches: [main]
+  pull_request:
+permissions: {}
+concurrency:
+  group: reuse-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  reuse:
+    name: REUSE
+    permissions:
+      contents: read
+    uses: openbunny/.github/.github/workflows/reusable-reuse.yml@2050692900f7dcd883e416ebee37a1b97b119203 # v0.3.0

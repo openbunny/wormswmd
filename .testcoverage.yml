@@ -1,0 +1,6 @@
+profile: coverage.out
+threshold:
+  package: 1
+exclude:
+  paths:
+    - ^main\.go$
