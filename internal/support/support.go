@@ -8,12 +8,15 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
 	"github.com/openbunny/wormswmd/internal/bundle"
+	"github.com/openbunny/wormswmd/internal/check"
 	"github.com/openbunny/wormswmd/internal/game"
 	"github.com/openbunny/wormswmd/internal/plistfix"
+	"github.com/openbunny/wormswmd/internal/run"
 )
 
 const (
@@ -23,11 +26,16 @@ const (
 	qtName     = "QtCore"
 )
 
-func Write(ctx context.Context, app, home, applications, output string) error {
+type Env struct {
+	Version string
+	Probes  check.Probes
+}
+
+func Write(ctx context.Context, app, home, applications, output string, env Env) error {
 	if err := ctx.Err(); err != nil {
 		return fmt.Errorf("support: %w", err)
 	}
-	body, err := report(ctx, app, home, applications)
+	body, err := report(ctx, app, home, applications, env)
 	if err != nil {
 		return fmt.Errorf("support: %w", err)
 	}
@@ -42,11 +50,14 @@ func Write(ctx context.Context, app, home, applications, output string) error {
 	return nil
 }
 
-func report(ctx context.Context, app, home, applications string) ([]byte, error) {
+func report(ctx context.Context, app, home, applications string, env Env) ([]byte, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
 	var b strings.Builder
+	if err := writeHost(ctx, &b, env); err != nil {
+		return nil, err
+	}
 	if app == "" {
 		resolved, err := game.Resolve(ctx, "", home, applications)
 		if err != nil {
@@ -101,7 +112,58 @@ func report(ctx context.Context, app, home, applications string) ([]byte, error)
 	if err := section("qtcore", version, err); err != nil {
 		return nil, err
 	}
+	if err := writeCheck(ctx, &b, app, home, applications, env); err != nil {
+		return nil, err
+	}
 	return []byte(b.String()), nil
+}
+
+func writeHost(ctx context.Context, b *strings.Builder, env Env) error {
+	version := env.Version
+	if version == "" {
+		version = "unknown"
+	}
+	fmt.Fprintf(b, "wormswmd: %s\n", version)
+	macos := env.Probes.MacOS
+	if macos == "" {
+		out, err := run.Or(env.Probes.Exec)(ctx, "sw_vers", "-productVersion")
+		if err != nil {
+			if ctxErr := ctx.Err(); ctxErr != nil {
+				return errors.Join(ctxErr, err)
+			}
+			fmt.Fprintf(b, "macos: %s\n", err)
+		} else {
+			macos = strings.TrimSpace(string(out))
+		}
+	}
+	if macos != "" {
+		fmt.Fprintf(b, "macos: %s\n", macos)
+	}
+	arch := env.Probes.Arch
+	if arch == "" {
+		arch = runtime.GOARCH
+	}
+	fmt.Fprintf(b, "arch: %s\n", arch)
+	return nil
+}
+
+func writeCheck(ctx context.Context, b *strings.Builder, app, home, applications string, env Env) error {
+	result, err := check.Evaluate(ctx, app, home, applications, env.Probes)
+	if err != nil {
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return errors.Join(ctxErr, err)
+		}
+		fmt.Fprintf(b, "check: %s\n", err)
+		return nil
+	}
+	fmt.Fprintf(b, "check: %s\n", check.Status(result.Exit))
+	for _, problem := range result.Problems {
+		fmt.Fprintf(b, "problem: %s\n", problem)
+	}
+	for _, note := range result.Notes {
+		fmt.Fprintf(b, "note: %s\n", note)
+	}
+	return nil
 }
 
 func aglFound(ctx context.Context, app string) (bool, error) {

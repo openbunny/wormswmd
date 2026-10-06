@@ -1,11 +1,43 @@
-The player-facing procedure comes from Chad Boyd's WormsWMD-macOS-Fix
-(https://github.com/cboyd0319/WormsWMD-macOS-Fix). Its terms are the MIT
-License (https://opensource.org/license/mit).
+wormswmd is unofficial. It is not affiliated with or endorsed by Team17, the
+Qt Company, Valve or Apple. Worms, Worms W.M.D and Team17 are trademarks of
+their owners. wormswmd contains no game files.
 
-Qt frameworks are downloaded at fetch time. They are LGPL and are not
-vendored in this repository. The Qt LGPL terms are
-https://www.gnu.org/licenses/lgpl-3.0.html and
-https://www.qt.io/licensing/.
+The procedure that wormswmd follows comes from WormsWMD-macOS-Fix by Chad Boyd
+(https://github.com/cboyd0319/WormsWMD-macOS-Fix). The procedure was followed
+and no upstream code is copied into this repository. The upstream license is
+reproduced here as a courtesy and for attribution:
+
+    MIT License
+
+    Copyright (c) 2025 Chad Boyd
+
+    Permission is hereby granted, free of charge, to any person obtaining a copy
+    of this software and associated documentation files (the "Software"), to deal
+    in the Software without restriction, including without limitation the rights
+    to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+    copies of the Software, and to permit persons to whom the Software is
+    furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in all
+    copies or substantial portions of the Software.
+
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+    AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+    OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+    SOFTWARE.
+
+    The upstream LICENSE file ends with this note after the MIT terms:
+
+    This fix is provided for personal use to restore functionality to Worms W.M.D
+    on macOS 26 (Tahoe) and later. Worms W.M.D is the property of Team17 Digital Ltd.
+
+Qt frameworks are downloaded at fetch time from an archive that the upstream
+author built and published. They are LGPL and are not vendored in this
+repository. The Qt LGPL terms are https://www.gnu.org/licenses/lgpl-3.0.html
+and https://www.qt.io/licensing/.
 
 The AGL stub is an independent implementation of the removed AGL entry points.
 The archive checksum pin is PinSHA256 in internal/qt.

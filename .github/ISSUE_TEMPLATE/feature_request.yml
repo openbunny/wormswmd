@@ -10,14 +10,14 @@ body:
       label: Component
       description: The part of wormswmd the request affects.
       options:
-        - "apply, preview, restore"
-        - "Qt fetch and framework replacement"
-        - "Mach-O and Info.plist rewriting"
-        - "saves backup and restore"
-        - "check and launch"
-        - "support report"
-        - "Build, toolchain, or install"
-        - New component
+        - "Fixing the game (fix, apply, preview)"
+        - "Restoring the app from a backup"
+        - "Backing up or restoring saves"
+        - "Downloading or checking the Qt archive"
+        - "Check, launch or support report"
+        - "Progress and output"
+        - "Installing or building wormswmd"
+        - "Something else"
     validations:
       required: true
   - type: textarea

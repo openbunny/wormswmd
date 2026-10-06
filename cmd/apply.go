@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"time"
@@ -8,6 +9,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/openbunny/wormswmd/internal/apply"
+	"github.com/openbunny/wormswmd/internal/check"
 )
 
 func newApply(preview bool) *cobra.Command {
@@ -17,12 +19,12 @@ func newApply(preview bool) *cobra.Command {
 		use = "preview"
 		short = "Print the macOS 26 changes and do not write them."
 	}
-	return newApplyCommand(use, short, func(cmd *cobra.Command, opt apply.Options) error {
+	return newApplyCommand(use, short, preview, func(cmd *cobra.Command, opt apply.Options) error {
 		return runApply(cmd, opt, preview)
 	})
 }
 
-func newApplyCommand(use, short string, run func(*cobra.Command, apply.Options) error) *cobra.Command {
+func newApplyCommand(use, short string, preview bool, run func(*cobra.Command, apply.Options) error) *cobra.Command {
 	var opt apply.Options
 	cmd := &cobra.Command{
 		Use:   use,
@@ -34,12 +36,16 @@ func newApplyCommand(use, short string, run func(*cobra.Command, apply.Options) 
 	}
 	flags := cmd.Flags()
 	flags.StringVar(&opt.App, "app", "", "Path to Worms W.M.D.app.")
-	flags.StringVar(&opt.QtArchive, "qt", "", "Path to a Qt 5.15 archive.")
-	flags.StringVar(&opt.QtPrefix, "qt-prefix", "", "Path to an extracted Qt 5.15 prefix.")
-	flags.StringVar(&opt.QtSHA256, "qt-sha256", "", "SHA-256 pin for the Qt archive, as hex.")
-	flags.BoolVar(&opt.Force, "force", false, "Apply when the changes are already present or the macOS major version is below the supported minimum.")
-	flags.StringVar(&opt.BackupDir, "backup-dir", "", "Directory that receives the app backup.")
-	flags.BoolVar(&opt.InstallRosetta, "install-rosetta", false, "Install Rosetta when Rosetta is absent.")
+	flags.StringVar(&opt.QtArchive, "qt", "", "Path to a Qt 5.15 archive. The archive is verified against the pinned SHA-256 or --qt-sha256.")
+	flags.StringVar(&opt.QtPrefix, "qt-prefix", "", "Path to an extracted Qt 5.15 prefix. The files are not verified against the pinned SHA-256.")
+	flags.StringVar(&opt.QtSHA256, "qt-sha256", "", "SHA-256 as hex that replaces the pinned SHA-256 for the archive given by --qt or WORMSWMD_QT.")
+	if preview {
+		flags.BoolVar(&opt.Force, "force", false, fmt.Sprintf("Plan the changes when they are already present or the macOS major version is below %d. Nothing is written.", check.MinMajor))
+		return cmd
+	}
+	flags.BoolVar(&opt.Force, "force", false, fmt.Sprintf("Write the changes when they are already present or the macOS major version is below %d.", check.MinMajor))
+	flags.StringVar(&opt.BackupDir, "backup-dir", "", "Directory that receives the app backup. The default is under the home directory.")
+	flags.BoolVar(&opt.InstallRosetta, "install-rosetta", false, "Install Rosetta when it is absent.")
 	return cmd
 }
 
@@ -52,6 +58,9 @@ func prepareApply(cmd *cobra.Command, opt apply.Options, preview bool) (apply.Op
 	opt.Applications = applications
 	opt.Preview = preview
 	opt.EnvQt = os.Getenv("WORMSWMD_QT")
+	if opt.QtSHA256 != "" && opt.QtArchive == "" && opt.EnvQt == "" {
+		return apply.Options{}, failure(errors.New("--qt-sha256 applies to an archive given by --qt or WORMSWMD_QT; pass one of them or remove --qt-sha256"))
+	}
 	cache, cacheErr := os.UserCacheDir()
 	chosen, err := applyCache(opt.QtArchive, opt.EnvQt, opt.QtPrefix, cache, cacheErr)
 	if err != nil {

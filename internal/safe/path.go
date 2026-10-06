@@ -48,6 +48,38 @@ func InRoot(root, path string) error {
 	return nil
 }
 
+func LinkEscape(root, linkPath, target string) error {
+	if err := ControlChars(target, "symlink target"); err != nil {
+		return err
+	}
+	if filepath.IsAbs(target) {
+		return fmt.Errorf("absolute symlink target %s", target)
+	}
+	named := false
+	for part := range strings.SplitSeq(target, "/") {
+		switch {
+		case part == "..":
+			if named {
+				return fmt.Errorf("symlink target %s has .. after a named component", target)
+			}
+		case part != "" && part != ".":
+			named = true
+		}
+	}
+	if err := IntermediateEscape(root, linkPath); err != nil {
+		return err
+	}
+	resolvedRoot, err := filepath.EvalSymlinks(root)
+	if err != nil {
+		return fmt.Errorf("safe: resolve %s: %w", root, err)
+	}
+	parent, err := filepath.EvalSymlinks(filepath.Dir(linkPath))
+	if err != nil {
+		return fmt.Errorf("safe: resolve %s: %w", filepath.Dir(linkPath), err)
+	}
+	return InRoot(resolvedRoot, filepath.Join(parent, target))
+}
+
 func IntermediateEscape(root, path string) error {
 	if err := InRoot(root, path); err != nil {
 		return err

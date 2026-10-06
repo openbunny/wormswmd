@@ -185,7 +185,7 @@ func TestEvaluate(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Evaluate error = %v", err)
 		}
-		if report.Exit != ExitMissing || !strings.Contains(strings.Join(report.Problems, "\n"), "pass --app") {
+		if report.Exit != ExitMissing || !report.Ambiguous || !strings.Contains(strings.Join(report.Problems, "\n"), "pass --app") {
 			t.Fatalf("report = %+v", report)
 		}
 	})

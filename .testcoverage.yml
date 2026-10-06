@@ -1,6 +1,7 @@
 profile: coverage.out
 threshold:
-  package: 1
+  package: 64
+  total: 74
 exclude:
   paths:
     - ^main\.go$

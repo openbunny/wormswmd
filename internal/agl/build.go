@@ -59,7 +59,7 @@ func Build(ctx context.Context, dest string, exec run.Exec) (string, error) {
 	}
 	compilerOut, err := exec(ctx, "xcrun", "--toolchain", "default", "--sdk", "macosx", "--find", "clang")
 	if err != nil {
-		return "", fmt.Errorf("agl: clang: %w", err)
+		return "", fmt.Errorf("agl: clang is missing; install the Xcode Command Line Tools: xcode-select --install: %w", err)
 	}
 	sdkOut, err := exec(ctx, "xcrun", "--toolchain", "default", "--sdk", "macosx", "--show-sdk-path")
 	if err != nil {

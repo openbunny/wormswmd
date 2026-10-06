@@ -15,7 +15,7 @@ import (
 )
 
 func newFix() *cobra.Command {
-	return newApplyCommand("fix", "Download the pinned Qt archive when needed, write the macOS 26 changes, and check the app.", runFix)
+	return newApplyCommand("fix", "Download the pinned Qt archive when needed, write the macOS 26 changes, and check the app.", false, runFix)
 }
 
 func runFix(cmd *cobra.Command, opt apply.Options) error {
@@ -60,7 +60,7 @@ func ensurePinnedQt(ctx context.Context, path string) error {
 	}
 	slog.Info("Downloading the Qt archive to " + path)
 	if err := fetchQt(ctx, path, qt.ArchiveURL, qt.PinSHA256); err != nil {
-		return fmt.Errorf("fix: %w", err)
+		return fmt.Errorf("fix: %w", downloadError(err))
 	}
 	slog.Debug("pinned Qt archive is ready", "path", path)
 	return nil

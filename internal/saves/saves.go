@@ -26,6 +26,8 @@ const (
 	absentSaves    = "no Worms saves found"
 )
 
+var ErrNoSaves = errors.New(absentSaves)
+
 func Backup(ctx context.Context, home string, now time.Time) (string, error) {
 	if err := ctx.Err(); err != nil {
 		return "", fmt.Errorf("saves: %w", err)
@@ -39,7 +41,7 @@ func Backup(ctx context.Context, home string, now time.Time) (string, error) {
 		return "", fmt.Errorf("saves: %w", err)
 	}
 	if team == "" && len(steam) == 0 {
-		return "", fmt.Errorf("saves: %s", absentSaves)
+		return "", fmt.Errorf("saves: %w", ErrNoSaves)
 	}
 	if now.IsZero() {
 		now = time.Now()
@@ -79,71 +81,85 @@ func Backup(ctx context.Context, home string, now time.Time) (string, error) {
 	return dest, nil
 }
 
-func Restore(ctx context.Context, home, dir string) error {
+func Restore(ctx context.Context, home, dir string, now time.Time) (string, error) {
 	if err := ctx.Err(); err != nil {
-		return fmt.Errorf("saves: %w", err)
+		return "", fmt.Errorf("saves: %w", err)
 	}
 	done := progress.Begin("Restoring Worms saves from the backup")
 	var copied tree.Tally
 	info, err := os.Lstat(dir)
 	if err != nil {
-		return fmt.Errorf("saves: %w", err)
+		return "", fmt.Errorf("saves: %w", err)
 	}
 	if !info.IsDir() {
-		return fmt.Errorf("saves: backup %s is not a directory", dir)
+		return "", fmt.Errorf("saves: backup %s is not a directory", dir)
 	}
 	teamSrc := filepath.Join(dir, teamDirName)
 	teamDest := filepath.Join(home, "Library", "Application Support", teamDirName)
 	restoreTeam, err := backupDir(ctx, teamSrc)
 	if err != nil {
-		return fmt.Errorf("saves: %w", err)
+		return "", fmt.Errorf("saves: %w", err)
 	}
 	if restoreTeam {
 		if err := refuseTeamSymlink(teamDest); err != nil {
-			return err
+			return "", err
 		}
 		if err := safe.InRoot(home, teamDest); err != nil {
-			return fmt.Errorf("saves: %w", err)
+			return "", fmt.Errorf("saves: %w", err)
 		}
 	}
 	ids, err := steamBackupIDs(ctx, dir)
 	if err != nil {
-		return fmt.Errorf("saves: %w", err)
+		return "", fmt.Errorf("saves: %w", err)
 	}
 	userdata := filepath.Join(home, "Library", "Application Support", "Steam", "userdata")
 	dests := make([]string, 0, len(ids))
 	for _, id := range ids {
 		if err := ctx.Err(); err != nil {
-			return fmt.Errorf("saves: %w", err)
+			return "", fmt.Errorf("saves: %w", err)
 		}
 		dest := filepath.Join(userdata, id, game.SteamAppID)
 		if err := steamStaysInside(userdata, dest); err != nil {
-			return err
+			return "", err
 		}
 		dests = append(dests, dest)
 	}
 	if err := ctx.Err(); err != nil {
-		return fmt.Errorf("saves: %w", err)
+		return "", fmt.Errorf("saves: %w", err)
 	}
 	if !restoreTeam && len(ids) == 0 {
-		return fmt.Errorf("saves: backup %s has no saves", dir)
+		return "", fmt.Errorf("saves: backup %s has no saves", dir)
+	}
+	prior, err := Backup(ctx, home, now)
+	switch {
+	case errors.Is(err, ErrNoSaves):
+		prior = ""
+	case err != nil:
+		return "", fmt.Errorf("saves: current saves are not backed up; nothing was replaced: %w", err)
 	}
 	if restoreTeam {
 		if err := replaceDir(ctx, teamSrc, teamDest, copied.Add); err != nil {
-			return err
+			return prior, withPrior(err, prior)
 		}
 	}
 	for i, id := range ids {
 		if err := ctx.Err(); err != nil {
-			return fmt.Errorf("saves: %w", err)
+			return prior, withPrior(fmt.Errorf("saves: %w", err), prior)
 		}
 		src := filepath.Join(dir, steamDirName, id)
 		if err := replaceDir(ctx, src, dests[i], copied.Add); err != nil {
-			return err
+			return prior, withPrior(err, prior)
 		}
 	}
 	done("Restored Worms saves: " + copied.String())
-	return nil
+	return prior, nil
+}
+
+func withPrior(err error, prior string) error {
+	if prior == "" {
+		return err
+	}
+	return fmt.Errorf("%w; the saves before the restore are backed up at %s", err, prior)
 }
 
 func List(ctx context.Context, home string) ([]string, error) {

@@ -7,13 +7,23 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
+
+	"github.com/openbunny/wormswmd/internal/check"
 )
+
+var rootLong = fmt.Sprintf(`Prepare Worms W.M.D to open on macOS %d or later.
+
+Examples:
+  wormswmd check
+  wormswmd preview
+  wormswmd fix`, check.MinMajor)
 
 func New() *cobra.Command {
 	cobra.EnableCommandSorting = false
 	root := &cobra.Command{
 		Use:           "wormswmd",
 		Short:         "Prepare Worms W.M.D to open on macOS 26.",
+		Long:          rootLong,
 		SilenceErrors: true,
 		SilenceUsage:  true,
 		PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
@@ -41,8 +51,8 @@ func New() *cobra.Command {
 	root.PersistentFlags().Bool("json", false, "Print JSON.")
 	root.PersistentFlags().Bool("verbose", false, "Log every step with timestamps and details to stderr.")
 	root.PersistentFlags().Bool("quiet", false, "Log only warnings and errors to stderr.")
-	root.PersistentFlags().String("home", "", "Home directory. An empty value reads the user home directory.")
-	root.PersistentFlags().String("applications", "", "Applications directory.")
+	root.PersistentFlags().String("home", "", "Home directory under which the game, the saves and the backups are looked up. An empty value uses the user home directory.")
+	root.PersistentFlags().String("applications", "", "Applications directory searched for the game. An empty value uses /Applications.")
 	root.AddCommand(
 		newFix(),
 		newApply(false),

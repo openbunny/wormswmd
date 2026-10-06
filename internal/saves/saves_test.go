@@ -64,8 +64,12 @@ func TestBackupRestore(t *testing.T) {
 	if err := os.RemoveAll(steamDir); err != nil {
 		t.Fatal(err)
 	}
-	if err := Restore(t.Context(), home, dir); err != nil {
+	prior, err := Restore(t.Context(), home, dir, now.Add(time.Hour))
+	if err != nil {
 		t.Fatal(err)
+	}
+	if prior == "" || prior == dir {
+		t.Fatalf("pre-restore backup = %q", prior)
 	}
 	got, err := os.ReadFile(teamFile)
 	if err != nil || string(got) != "original" {
@@ -106,7 +110,7 @@ func TestBackupAbsent(t *testing.T) {
 	}
 	empty := filepath.Join(home, "Documents", backupRootName, "empty")
 	mkdir(t, empty)
-	if err := Restore(t.Context(), home, empty); err == nil || !strings.Contains(err.Error(), "has no saves") {
+	if _, err := Restore(t.Context(), home, empty, time.Time{}); err == nil || !strings.Contains(err.Error(), "has no saves") {
 		t.Fatalf("restore empty = %v", err)
 	}
 }
@@ -139,7 +143,7 @@ func TestRestoreSteamSymlinkLeavesUserdata(t *testing.T) {
 		t.Fatal(err)
 	}
 	link(t, outside, steamDir)
-	err = Restore(t.Context(), home, dir)
+	_, err = Restore(t.Context(), home, dir, time.Time{})
 	if err == nil || !strings.Contains(err.Error(), "leaves userdata") {
 		t.Fatalf("restore = %v", err)
 	}
@@ -172,5 +176,73 @@ func TestBackupAndListRejectSymlinkRoot(t *testing.T) {
 	}
 	if len(entries) != 0 {
 		t.Fatalf("symlink target = %#v", entries)
+	}
+}
+
+func TestRestoreBacksUpCurrentSavesFirst(t *testing.T) {
+	home, teamFile, steamDir := fixtureHome(t)
+	steamFile := filepath.Join(steamDir, "slot")
+	dir, err := Backup(t.Context(), home, time.Date(2020, 1, 2, 3, 4, 5, 0, time.UTC))
+	if err != nil {
+		t.Fatal(err)
+	}
+	write(t, teamFile, "newer")
+	write(t, steamFile, "steam-newer")
+	prior, err := Restore(t.Context(), home, dir, time.Date(2020, 1, 3, 3, 4, 5, 0, time.UTC))
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := filepath.Join(home, "Documents", backupRootName, "WormsWMD-SaveBackup-20200103-030405")
+	if prior != want {
+		t.Fatalf("pre-restore backup = %q, want %q", prior, want)
+	}
+	for path, content := range map[string]string{
+		filepath.Join(prior, teamDirName, "save"):        "newer",
+		filepath.Join(prior, steamDirName, "42", "slot"): "steam-newer",
+		teamFile:  "original",
+		steamFile: "steam-original",
+	} {
+		got, err := os.ReadFile(path)
+		if err != nil || string(got) != content {
+			t.Fatalf("%s = %q, %v; want %q", path, got, err, content)
+		}
+	}
+}
+
+func TestRestoreWithoutCurrentSavesHasNoPriorBackup(t *testing.T) {
+	home, teamFile, steamDir := fixtureHome(t)
+	dir, err := Backup(t.Context(), home, time.Date(2020, 1, 2, 3, 4, 5, 0, time.UTC))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.RemoveAll(filepath.Dir(teamFile)); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.RemoveAll(steamDir); err != nil {
+		t.Fatal(err)
+	}
+	prior, err := Restore(t.Context(), home, dir, time.Date(2020, 1, 3, 3, 4, 5, 0, time.UTC))
+	if err != nil || prior != "" {
+		t.Fatalf("restore = %q, %v", prior, err)
+	}
+	if got, err := os.ReadFile(teamFile); err != nil || string(got) != "original" {
+		t.Fatalf("team = %q, %v", got, err)
+	}
+}
+
+func TestRestoreStopsWhenPriorBackupFails(t *testing.T) {
+	home, teamFile, _ := fixtureHome(t)
+	now := time.Date(2020, 1, 2, 3, 4, 5, 0, time.UTC)
+	dir, err := Backup(t.Context(), home, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	write(t, teamFile, "newer")
+	_, err = Restore(t.Context(), home, dir, now)
+	if err == nil || !strings.Contains(err.Error(), "nothing was replaced") {
+		t.Fatalf("restore = %v", err)
+	}
+	if got, readErr := os.ReadFile(teamFile); readErr != nil || string(got) != "newer" {
+		t.Fatalf("team = %q, %v", got, readErr)
 	}
 }

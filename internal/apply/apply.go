@@ -70,6 +70,11 @@ func Run(ctx context.Context, opt Options) (result Result, err error) {
 		return Result{}, err
 	}
 	slog.Debug("resolved the app", "app", app)
+	if opt.QtPrefix == "" && (opt.QtArchive != "" || opt.EnvQt != "") {
+		if _, err = locateArchive(opt); err != nil {
+			return Result{}, err
+		}
+	}
 	already, err := alreadyApplied(ctx, app, opt)
 	if err != nil {
 		return Result{}, err
@@ -80,6 +85,11 @@ func Run(ctx context.Context, opt Options) (result Result, err error) {
 	}
 	if err = checkHost(ctx, opt); err != nil {
 		return Result{}, err
+	}
+	if !opt.Preview {
+		if err = requireClang(ctx, run.Or(opt.Exec)); err != nil {
+			return Result{}, err
+		}
 	}
 	slog.Info("Checked this Mac: it can run the fix")
 	finished := progress.Begin(startMessage(opt.Preview, app))
@@ -98,6 +108,7 @@ func Run(ctx context.Context, opt Options) (result Result, err error) {
 		if err = qt.Validate(ctx, prefix); err != nil {
 			return Result{}, fmt.Errorf("apply: %w", err)
 		}
+		slog.Warn("The Qt files you provided are not verified against the pinned checksum")
 		slog.Info("Using the Qt files you provided")
 		slog.Debug("using the Qt prefix", "prefix", prefix)
 	} else {
@@ -109,6 +120,9 @@ func Run(ctx context.Context, opt Options) (result Result, err error) {
 		archive, err = locateArchive(opt)
 		if err != nil {
 			return Result{}, err
+		}
+		if opt.QtSHA256 != "" {
+			slog.Warn("The Qt archive is verified against --qt-sha256, not the pinned checksum")
 		}
 		slog.Info("Using the Qt archive")
 		slog.Debug("using the Qt archive", "archive", archive)
@@ -179,14 +193,28 @@ func Run(ctx context.Context, opt Options) (result Result, err error) {
 	result.Warnings = append(result.Warnings, extra...)
 	slog.Info("Clearing the macOS quarantine flag")
 	if err = clearQuarantine(ctx, app, ex); err != nil {
-		return result, err
+		return result, modifiedError(backupDir, err)
 	}
 	slog.Info("Resetting the saved window settings")
 	if err = resetWindow(ctx, ex); err != nil {
-		return result, err
+		return result, modifiedError(backupDir, err)
 	}
 	finished("Fixed Worms W.M.D")
 	return result, nil
+}
+
+func modifiedError(backupDir string, err error) error {
+	return fmt.Errorf("the app was modified and the fix is installed; the backup is %s: %w", backupDir, err)
+}
+
+func requireClang(ctx context.Context, ex run.Exec) error {
+	if _, err := ex(ctx, "xcrun", "--find", "clang"); err != nil {
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return fmt.Errorf("apply: %w", ctxErr)
+		}
+		return fmt.Errorf("apply: clang is missing; install the Xcode Command Line Tools: xcode-select --install: %w", err)
+	}
+	return nil
 }
 
 func startMessage(preview bool, app string) string {
@@ -277,6 +305,9 @@ func checkHost(ctx context.Context, opt Options) error {
 	}
 	ex := run.Or(opt.Exec)
 	if _, err := ex(ctx, "arch", "-x86_64", "/usr/bin/true"); err != nil {
+		if opt.Preview {
+			return fmt.Errorf("apply: x86_64 cannot run because Rosetta is absent; run wormswmd fix --install-rosetta to install it: %w", err)
+		}
 		if !opt.InstallRosetta {
 			return fmt.Errorf("apply: x86_64 cannot run; pass --install-rosetta: %w", err)
 		}

@@ -11,7 +11,7 @@ import (
 func newRestore() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "restore",
-		Short: "Restore Worms W.M.D from an app backup.",
+		Short: "Restore Worms W.M.D from an app backup; --backup is required.",
 		Args:  cobra.NoArgs,
 		RunE:  runRestore,
 	}
@@ -21,6 +21,13 @@ func newRestore() *cobra.Command {
 	flags.Bool("force", false, "Replace the current app.")
 	markRequired(cmd, "backup")
 	return cmd
+}
+
+func restoredLine(app, dir string) string {
+	if app == "" {
+		return fmt.Sprintf("Restored the app recorded in the backup %s.", dir)
+	}
+	return fmt.Sprintf("Restored %s from the backup %s.", app, dir)
 }
 
 func runRestore(cmd *cobra.Command, _ []string) error {
@@ -39,5 +46,7 @@ func runRestore(cmd *cobra.Command, _ []string) error {
 	if err := backup.Restore(cmd.Context(), dir, app, force); err != nil {
 		return failure(err)
 	}
-	return emit(cmd, map[string]string{"backup": dir, "app": app}, func() error { return nil })
+	return emit(cmd, map[string]string{"backup": dir, "app": app}, func() error {
+		return writeLines(cmd, []string{restoredLine(app, dir)})
+	})
 }

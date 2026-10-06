@@ -59,7 +59,7 @@ func Valid(ctx context.Context, app string) error {
 		return fmt.Errorf("game: %w", err)
 	}
 	if info.Mode()&os.ModeSymlink != 0 {
-		return fmt.Errorf("game bundle is a symlink: %s: %w", app, ErrNotBundle)
+		return fmt.Errorf("game bundle is a symlink: %s: %w; pass the real path of the bundle", app, ErrNotBundle)
 	}
 	if !info.IsDir() {
 		return fmt.Errorf("game is not a directory: %s: %w", app, ErrNotBundle)
@@ -167,7 +167,7 @@ func Find(ctx context.Context, home, applications string) ([]string, error) {
 		return nil, err
 	}
 	seen := map[string]struct{}{}
-	var found []string
+	var found, linked []string
 	slog.Debug("searching for the game", "candidates", len(candidates))
 	for _, path := range candidates {
 		if err := ctx.Err(); err != nil {
@@ -176,6 +176,9 @@ func Find(ctx context.Context, home, applications string) ([]string, error) {
 		if err := Valid(ctx, path); err != nil {
 			if errors.Is(err, ErrNotBundle) || errors.Is(err, os.ErrNotExist) {
 				slog.Debug("candidate rejected", "path", path, "reason", err)
+				if info, statErr := os.Lstat(path); statErr == nil && info.Mode()&os.ModeSymlink != 0 {
+					linked = append(linked, path)
+				}
 				continue
 			}
 			return nil, err
@@ -191,6 +194,11 @@ func Find(ctx context.Context, home, applications string) ([]string, error) {
 		seen[key] = struct{}{}
 		slog.Debug("candidate matches", "path", path)
 		found = append(found, path)
+	}
+	if len(found) == 0 {
+		for _, path := range linked {
+			slog.Info("Skipped " + path + " because it is a symlink; pass the real path of the bundle with --app")
+		}
 	}
 	return found, nil
 }

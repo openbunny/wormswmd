@@ -1,8 +1,10 @@
 package game
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -250,3 +252,39 @@ func write(t *testing.T, path, data string) {
 }
 
 const testFileMode = 0o644
+
+func TestValidSymlinkErrorNamesRemedy(t *testing.T) {
+	dir := t.TempDir()
+	target := filepath.Join(dir, "target.app")
+	mkdir(t, target)
+	link := filepath.Join(dir, "link.app")
+	if err := os.Symlink(target, link); err != nil {
+		t.Fatal(err)
+	}
+	err := Valid(t.Context(), link)
+	if !errors.Is(err, ErrNotBundle) || !strings.Contains(err.Error(), "pass the real path of the bundle") {
+		t.Fatalf("Valid = %v", err)
+	}
+}
+
+func TestFindLogsSkippedSymlinkWhenNothingElseMatches(t *testing.T) {
+	home := t.TempDir()
+	path := filepath.Join(home, "Library", "Application Support", "Steam", "steamapps", "common", "WormsWMD", bundleName)
+	target := filepath.Join(home, "target.app")
+	mkdir(t, filepath.Dir(path))
+	mkdir(t, target)
+	if err := os.Symlink(target, path); err != nil {
+		t.Fatal(err)
+	}
+	var buf bytes.Buffer
+	prev := slog.Default()
+	t.Cleanup(func() { slog.SetDefault(prev) })
+	slog.SetDefault(slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelInfo})))
+	found, err := Find(t.Context(), home, t.TempDir())
+	if err != nil || len(found) != 0 {
+		t.Fatalf("Find = %v, %v", found, err)
+	}
+	if !strings.Contains(buf.String(), "because it is a symlink; pass the real path of the bundle with --app") || !strings.Contains(buf.String(), path) {
+		t.Fatalf("log = %q", buf.String())
+	}
+}

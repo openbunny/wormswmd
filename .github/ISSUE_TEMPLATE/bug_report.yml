@@ -1,22 +1,22 @@
 # yaml-language-server: $schema=https://json.schemastore.org/github-issue-forms.json
 name: Bug report
 description: A command behaves differently from what it documents
-title: "[bug]: "
-labels: ["type/bug", "status/needs-triage"]
+title: '[bug]: '
+labels: ['type/bug', 'status/needs-triage']
 body:
   - type: dropdown
     id: component
     attributes:
       label: Component
-      description: The part of wormswmd the bug is in.
+      description: What went wrong.
       options:
-        - "apply, preview, restore"
-        - "Qt fetch and framework replacement"
-        - "Mach-O and Info.plist rewriting"
-        - "saves backup and restore"
-        - "check and launch"
-        - "support report"
-        - "Build, toolchain, or install"
+        - 'The fix did not finish (fix or apply showed an error)'
+        - 'The game still does not open after the fix'
+        - 'Restoring the app from a backup'
+        - 'Backing up or restoring saves'
+        - 'Downloading or checking the Qt archive'
+        - 'Check, launch or support report'
+        - 'Installing or building wormswmd'
     validations:
       required: true
   - type: input
@@ -24,14 +24,14 @@ body:
     attributes:
       label: Command
       description: The exact command run, with its flags.
-      placeholder: "wormswmd apply --force"
+      placeholder: 'wormswmd apply --force'
     validations:
       required: true
   - type: textarea
     id: observed
     attributes:
       label: Observed
-      description: What happened, including any error text and any support report.
+      description: What happened, including any error text. Run `wormswmd support --output support.tar`, read the report, and attach it only if you accept what it contains; see PRIVACY.md.
     validations:
       required: true
   - type: textarea
@@ -52,7 +52,7 @@ body:
     id: version
     attributes:
       label: wormswmd version
-      description: The output of `wormswmd version`, or the commit the report applies to.
+      description: The output of `wormswmd version`.
     validations:
       required: true
   - type: input
@@ -60,13 +60,13 @@ body:
     attributes:
       label: Operating system
       description: The macOS version and architecture the report applies to.
-      placeholder: "macOS 26.0 arm64"
+      placeholder: 'macOS 26.0 arm64'
     validations:
       required: true
   - type: input
     id: archive
     attributes:
       label: Qt archive checksum
-      description: The `PinSHA256` value in `internal/qt` the report was made against.
+      description: Optional. The Qt archive SHA-256 the report applies to, when you know it.
     validations:
       required: false

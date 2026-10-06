@@ -22,7 +22,7 @@ type versionJSON struct {
 	Version string `json:"version"`
 }
 
-func runVersion(cmd *cobra.Command, _ []string) error {
+func wormswmdVersion() string {
 	version := buildVersion
 	if version == "" {
 		info, ok := debug.ReadBuildInfo()
@@ -33,6 +33,11 @@ func runVersion(cmd *cobra.Command, _ []string) error {
 	if version == "" {
 		version = "(devel)"
 	}
+	return version
+}
+
+func runVersion(cmd *cobra.Command, _ []string) error {
+	version := wormswmdVersion()
 	slog.Debug("resolved the version", "version", version)
 	return emit(cmd, versionJSON{Version: version}, func() error { return writeLines(cmd, []string{version}) })
 }

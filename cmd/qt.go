@@ -1,6 +1,8 @@
 package cmd
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -26,6 +28,13 @@ func newQt() *cobra.Command {
 	return qtCmd
 }
 
+func downloadError(err error) error {
+	if errors.Is(err, context.Canceled) {
+		return err
+	}
+	return fmt.Errorf("download %s with expected SHA-256 %s failed: %w; download the archive another way and pass --qt PATH", qt.ArchiveURL, qt.PinSHA256, err)
+}
+
 func qtFetchPath(output, cache string) string {
 	if output != "" {
 		return output
@@ -47,7 +56,7 @@ func runQtFetch(cmd *cobra.Command, _ []string) error {
 	}
 	dest := qtFetchPath(output, cache)
 	if err := qt.Fetch(cmd.Context(), dest, qt.ArchiveURL, qt.PinSHA256); err != nil {
-		return failure(err)
+		return failure(downloadError(err))
 	}
 	return emit(cmd, dest, func() error { return writeLines(cmd, []string{dest}) })
 }

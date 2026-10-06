@@ -3,6 +3,7 @@ package support
 import (
 	"archive/tar"
 	"bytes"
+	"context"
 	"errors"
 	"io"
 	"math/rand/v2"
@@ -12,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/openbunny/wormswmd/internal/check"
 	"github.com/openbunny/wormswmd/internal/game"
 )
 
@@ -103,7 +105,7 @@ func TestWriteOmitsFileBodies(t *testing.T) {
 	if err := os.WriteFile(qtPlist, planted, 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if err := Write(t.Context(), app, root, applications, output); err != nil {
+	if err := Write(t.Context(), app, root, applications, output, testEnv()); err != nil {
 		t.Fatal(err)
 	}
 	raw, err := os.ReadFile(output)
@@ -195,7 +197,7 @@ func TestWriteOmitsRandomFileBodies(t *testing.T) {
 		if err := os.WriteFile(save, payload, 0o644); err != nil {
 			t.Fatal(err)
 		}
-		if err := Write(t.Context(), app, home, applications, output); err != nil {
+		if err := Write(t.Context(), app, home, applications, output, testEnv()); err != nil {
 			t.Fatal(err)
 		}
 		raw, err := os.ReadFile(output)
@@ -214,7 +216,7 @@ func TestWriteOmitsRandomFileBodies(t *testing.T) {
 func TestWriteResolveFailureStillArchives(t *testing.T) {
 	home := t.TempDir()
 	output := filepath.Join(home, "out.tar")
-	if err := Write(t.Context(), "", home, t.TempDir(), output); err != nil {
+	if err := Write(t.Context(), "", home, t.TempDir(), output, testEnv()); err != nil {
 		t.Fatal(err)
 	}
 	raw, err := os.ReadFile(output)
@@ -225,7 +227,56 @@ func TestWriteResolveFailureStillArchives(t *testing.T) {
 		t.Fatalf("archive = %s", raw)
 	}
 	missing := filepath.Join(home, "missing", "out.tar")
-	if err := Write(t.Context(), "", home, t.TempDir(), missing); err == nil {
+	if err := Write(t.Context(), "", home, t.TempDir(), missing, testEnv()); err == nil {
 		t.Fatal("missing output directory succeeded")
+	}
+}
+
+func testEnv() Env {
+	return Env{
+		Version: "v9.9.9",
+		Probes: check.Probes{
+			MacOS:      "26.1",
+			Arch:       "arm64",
+			Rosetta:    func(context.Context) (bool, error) { return false, nil },
+			Compiler:   func(context.Context) error { return errors.New("no clang") },
+			Signature:  func(context.Context, string) (bool, error) { return true, nil },
+			Quarantine: func(context.Context, string) (bool, error) { return false, nil },
+			Window:     func(context.Context) (bool, error) { return false, nil },
+		},
+	}
+}
+
+func TestReportIncludesHostAndCheckResult(t *testing.T) {
+	app, err := game.Scaffold(t.Context(), t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, err := report(t.Context(), app, t.TempDir(), t.TempDir(), testEnv())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{
+		"wormswmd: v9.9.9\n",
+		"macos: 26.1\n",
+		"arch: arm64\n",
+		"check: not-ready\n",
+		"problem: Rosetta is absent\n",
+		"note: clang: no clang\n",
+	} {
+		if !strings.Contains(string(body), want) {
+			t.Fatalf("report lacks %q:\n%s", want, body)
+		}
+	}
+}
+
+func TestReportWithoutAppKeepsHostLines(t *testing.T) {
+	home := t.TempDir()
+	body, err := report(t.Context(), "", home, t.TempDir(), testEnv())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(body), "wormswmd: v9.9.9\n") || !strings.Contains(string(body), "not found") {
+		t.Fatalf("report = %s", body)
 	}
 }

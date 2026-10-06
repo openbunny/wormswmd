@@ -9,12 +9,12 @@ import (
 func newSupport() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "support",
-		Short: "Write a support report.",
+		Short: "Write a support report as a tar archive.",
 		Args:  cobra.NoArgs,
 		RunE:  runSupport,
 	}
 	flags := cmd.Flags()
-	flags.String("output", "", "Path of the support report.")
+	flags.String("output", "", "Path of the support report. The file is a tar archive that holds report.txt; name it with a .tar extension.")
 	flags.String("app", "", "Path to Worms W.M.D.app.")
 	markRequired(cmd, "output")
 	return cmd
@@ -33,7 +33,7 @@ func runSupport(cmd *cobra.Command, _ []string) error {
 	if err != nil {
 		return err
 	}
-	if err := support.Write(cmd.Context(), app, home, applications, output); err != nil {
+	if err := support.Write(cmd.Context(), app, home, applications, output, support.Env{Version: wormswmdVersion()}); err != nil {
 		return failure(err)
 	}
 	return emit(cmd, supportJSON{Output: output}, func() error { return writeLines(cmd, []string{output}) })

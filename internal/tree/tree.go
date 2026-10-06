@@ -78,7 +78,14 @@ func CopyCounted(ctx context.Context, src, dst string, onFile func(size int64)) 
 	if err := os.MkdirAll(filepath.Dir(dst), dirMode); err != nil {
 		return fmt.Errorf("tree: mkdir %s: %w", filepath.Dir(dst), err)
 	}
-	return copyEntry(ctx, src, dst, dst, info, onFile)
+	root := filepath.Dir(dst)
+	if info.IsDir() {
+		root = dst
+		if err := os.MkdirAll(dst, dirMode); err != nil {
+			return fmt.Errorf("tree: mkdir %s: %w", dst, err)
+		}
+	}
+	return copyEntry(ctx, src, dst, root, info, onFile)
 }
 
 func copyEntry(ctx context.Context, src, dst, root string, info fs.FileInfo, onFile func(int64)) error {
@@ -91,7 +98,10 @@ func copyEntry(ctx context.Context, src, dst, root string, info fs.FileInfo, onF
 		if err != nil {
 			return fmt.Errorf("tree: readlink %s: %w", src, err)
 		}
-		if err := safeLink(root, dst, target); err != nil {
+		if err := os.MkdirAll(filepath.Dir(dst), dirMode); err != nil {
+			return fmt.Errorf("tree: mkdir %s: %w", filepath.Dir(dst), err)
+		}
+		if err := safe.LinkEscape(root, dst, target); err != nil {
 			return fmt.Errorf("tree: symlink %s: %w", src, err)
 		}
 		if err := os.Symlink(target, dst); err != nil {
@@ -99,6 +109,9 @@ func copyEntry(ctx context.Context, src, dst, root string, info fs.FileInfo, onF
 		}
 		return nil
 	case info.IsDir():
+		if err := safe.IntermediateEscape(root, dst); err != nil {
+			return fmt.Errorf("tree: %w", err)
+		}
 		if err := os.MkdirAll(dst, dirMode); err != nil {
 			return fmt.Errorf("tree: mkdir %s: %w", dst, err)
 		}
@@ -117,14 +130,17 @@ func copyEntry(ctx context.Context, src, dst, root string, info fs.FileInfo, onF
 		}
 		return nil
 	case info.Mode().IsRegular():
-		return copyFile(ctx, src, dst, info.Mode(), onFile)
+		return copyFile(ctx, src, dst, root, info.Mode(), onFile)
 	default:
 		return fmt.Errorf("tree: unsupported file type: %s", src)
 	}
 }
 
-func copyFile(ctx context.Context, src, dst string, mode fs.FileMode, onFile func(int64)) error {
+func copyFile(ctx context.Context, src, dst, root string, mode fs.FileMode, onFile func(int64)) error {
 	if err := ctx.Err(); err != nil {
+		return fmt.Errorf("tree: %w", err)
+	}
+	if err := safe.IntermediateEscape(root, dst); err != nil {
 		return fmt.Errorf("tree: %w", err)
 	}
 	if err := os.MkdirAll(filepath.Dir(dst), dirMode); err != nil {
@@ -153,15 +169,4 @@ func copyFile(ctx context.Context, src, dst string, mode fs.FileMode, onFile fun
 		onFile(n)
 	}
 	return nil
-}
-
-func safeLink(root, linkPath, target string) error {
-	if err := safe.ControlChars(target, "symlink target"); err != nil {
-		return err
-	}
-	if filepath.IsAbs(target) {
-		return fmt.Errorf("absolute symlink target %s", target)
-	}
-	resolved := filepath.Clean(filepath.Join(filepath.Dir(linkPath), target))
-	return safe.InRoot(root, resolved)
 }

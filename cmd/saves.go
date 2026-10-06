@@ -22,7 +22,7 @@ func newSaves() *cobra.Command {
 	}
 	restoreCmd := &cobra.Command{
 		Use:   "restore",
-		Short: "Restore Worms W.M.D saves from a directory.",
+		Short: "Save the current saves to a new backup, then restore Worms W.M.D saves from a directory.",
 		Args:  cobra.NoArgs,
 		RunE:  runSavesRestore,
 	}
@@ -59,10 +59,17 @@ func runSavesRestore(cmd *cobra.Command, _ []string) error {
 	if err != nil {
 		return err
 	}
-	if err := saves.Restore(cmd.Context(), home, dir); err != nil {
+	prior, err := saves.Restore(cmd.Context(), home, dir, time.Now())
+	if err != nil {
 		return failure(err)
 	}
-	return emit(cmd, dir, func() error { return nil })
+	return emit(cmd, dir, func() error {
+		lines := []string{}
+		if prior != "" {
+			lines = append(lines, "Saved the current saves to "+prior)
+		}
+		return writeLines(cmd, append(lines, "Restored the saves from "+dir))
+	})
 }
 
 func runSavesList(cmd *cobra.Command, _ []string) error {

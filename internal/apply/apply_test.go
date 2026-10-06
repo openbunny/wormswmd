@@ -43,7 +43,7 @@ func TestEnsureQtOrder(t *testing.T) {
 			}
 			return errors.New("ensure stopped")
 		}
-		opt.Exec = forbidExec(t)
+		opt.Exec = clangOnlyExec(t)
 		_, err := Run(t.Context(), opt)
 		if err == nil || !strings.Contains(err.Error(), "ensure stopped") || !called {
 			t.Fatalf("Run error = %v, called = %v", err, called)
@@ -96,7 +96,7 @@ func TestEnsureQtOrder(t *testing.T) {
 				t.Fatalf("EnsureQt called for %s", tc.name)
 				return nil
 			}
-			opt.Exec = forbidExec(t)
+			opt.Exec = clangOnlyExec(t)
 			_, err := Run(t.Context(), opt)
 			if tc.wantErr == "" {
 				if err != nil {
@@ -181,7 +181,7 @@ func TestRun(t *testing.T) {
 		backup := filepath.Join(home, "backup")
 		opt := baseOpt(app, home, "", backup)
 		opt.QtArchive = filepath.Join(home, "missing.tar.gz")
-		opt.Exec = forbidExec(t)
+		opt.Exec = clangOnlyExec(t)
 		_, err := Run(t.Context(), opt)
 		if err == nil || !strings.Contains(err.Error(), "is absent") || strings.Contains(err.Error(), "wormswmd qt fetch") {
 			t.Fatalf("Run error = %v", err)
@@ -320,6 +320,67 @@ func TestRun(t *testing.T) {
 		}
 		assertNoBackup(t, secondBackup)
 	})
+}
+
+func TestRunMissingClangStopsBeforeAnyChange(t *testing.T) {
+	home := t.TempDir()
+	app := scaffold(t, home)
+	backup := filepath.Join(home, "backup")
+	opt := baseOpt(app, home, "", backup)
+	opt.CacheDir = t.TempDir()
+	opt.EnsureQt = func(context.Context, string) error {
+		t.Fatal("EnsureQt called before the clang check")
+		return nil
+	}
+	opt.Exec = func(_ context.Context, name string, args ...string) ([]byte, error) {
+		if name == "xcrun" {
+			return nil, errors.New("xcrun: exit status 1")
+		}
+		t.Fatalf("exec %s %s", name, strings.Join(args, " "))
+		return nil, nil
+	}
+	_, err := Run(t.Context(), opt)
+	if err == nil || !strings.Contains(err.Error(), "install the Xcode Command Line Tools: xcode-select --install") {
+		t.Fatalf("Run error = %v", err)
+	}
+	assertNoBackup(t, backup)
+}
+
+func TestRunPostMutateFailureNamesBackup(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		tool string
+		args string
+	}{
+		{name: "quarantine", tool: "xattr", args: "-rd"},
+		{name: "window", tool: "defaults", args: "delete"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			home := t.TempDir()
+			app := scaffold(t, home)
+			backup := filepath.Join(home, "backup")
+			opt := baseOpt(app, home, qtPrefix(t), backup)
+			opt.Exec = func(ctx context.Context, name string, args ...string) ([]byte, error) {
+				if name == tc.tool && len(args) > 0 && args[0] == tc.args {
+					return nil, errors.New(tc.tool + ": exit status 1")
+				}
+				return stubTool(ctx, t, name, args, false)
+			}
+			result, err := Run(t.Context(), opt)
+			if err == nil {
+				t.Fatal("Run error = nil")
+			}
+			if !strings.Contains(err.Error(), "the app was modified") || !strings.Contains(err.Error(), backup) || !strings.Contains(err.Error(), tc.tool+": exit status 1") {
+				t.Fatalf("Run error = %v", err)
+			}
+			if result.Backup != backup {
+				t.Fatalf("result.Backup = %q, want %q", result.Backup, backup)
+			}
+			if _, statErr := os.Stat(filepath.Join(app, "Contents", "Frameworks", "AGL.framework")); statErr != nil {
+				t.Fatalf("the fix is not installed: %v", statErr)
+			}
+		})
+	}
 }
 
 func assertNoBackup(t *testing.T, backup string) {
@@ -521,6 +582,17 @@ func qtPrefix(t *testing.T) string {
 		}
 	}
 	return root
+}
+
+func clangOnlyExec(t *testing.T) run.Exec {
+	t.Helper()
+	return func(_ context.Context, name string, args ...string) ([]byte, error) {
+		if name == "xcrun" && slices.Equal(args, []string{"--find", "clang"}) {
+			return []byte("/usr/bin/clang\n"), nil
+		}
+		t.Fatalf("exec %s %s", name, strings.Join(args, " "))
+		return nil, nil
+	}
 }
 
 func forbidExec(t *testing.T) run.Exec {

@@ -341,7 +341,7 @@ func extractTar(ctx context.Context, r io.Reader, dest string, regular *int) err
 			continue
 		}
 		target := filepath.Join(dest, name)
-		if err := safe.InRoot(dest, target); err != nil {
+		if err := safe.IntermediateEscape(dest, target); err != nil {
 			return fmt.Errorf("qt: %w", err)
 		}
 		switch hdr.Typeflag {
@@ -359,11 +359,11 @@ func extractTar(ctx context.Context, r io.Reader, dest string, regular *int) err
 			}
 			bytes += hdr.Size
 		case tar.TypeSymlink:
-			if err := safeSymlink(dest, target, hdr.Linkname); err != nil {
-				return fmt.Errorf("qt: %s: %w", name, err)
-			}
 			if err := os.MkdirAll(filepath.Dir(target), dirMode); err != nil {
 				return fmt.Errorf("qt: %w", err)
+			}
+			if err := safe.LinkEscape(dest, target, hdr.Linkname); err != nil {
+				return fmt.Errorf("qt: %s: %w", name, err)
 			}
 			if err := os.Symlink(hdr.Linkname, target); err != nil {
 				return fmt.Errorf("qt: symlink %s: %w", name, err)
@@ -397,17 +397,6 @@ func writeReg(ctx context.Context, r io.Reader, target string, hdr *tar.Header) 
 		return fmt.Errorf("qt: %s: read %d bytes; header size is %d", target, n, hdr.Size)
 	}
 	return nil
-}
-
-func safeSymlink(root, linkPath, target string) error {
-	if err := safe.ControlChars(target, "symlink target"); err != nil {
-		return err
-	}
-	if filepath.IsAbs(target) {
-		return fmt.Errorf("absolute symlink target %s", target)
-	}
-	resolved := filepath.Clean(filepath.Join(filepath.Dir(linkPath), target))
-	return safe.InRoot(root, resolved)
 }
 
 func Validate(ctx context.Context, prefix string) error {

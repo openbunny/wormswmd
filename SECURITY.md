@@ -4,14 +4,14 @@ Report a vulnerability through a private GitHub Security Advisory at <https://gi
 
 Include the command, the error text, and the version line from `wormswmd version`. Omit save files, config bodies, and game binaries.
 
-## What apply writes
+## Supported versions
 
-`wormswmd fix` performs the same writes as `apply`. When `--qt`, `--qt-prefix`, and `WORMSWMD_QT` are unset, it downloads the pinned Qt archive if the cached file is absent or its SHA-256 does not match the pin.
+The latest commit on `main` is the only supported version. This file makes no response-time commitment.
 
-`wormswmd apply` replaces frameworks under `Contents/Frameworks` with the frameworks from the pinned Qt archive. It copies `Contents/PlugIns/platforms/libqcocoa.dylib` and the libraries in `Contents/PlugIns/imageformats`. Where `Contents/PlugIns/accessible` or `Contents/PlugIns/printsupport` exists, `apply` removes that directory. It installs an AGL stub at `Contents/Frameworks/AGL.framework` with the install name `@executable_path/../Frameworks/AGL.framework/AGL`. It rewrites Mach-O load commands that name `/System/Library/Frameworks/AGL.framework/`, including other Mach-O files in each framework and every `*.dylib` under `Contents/PlugIns`.
+## What the tool writes
 
-On `Contents/Info.plist`, `apply` sets `CFBundleIdentifier` to `com.team17.wormswmd` when that key is empty, sets `NSHighResolutionCapable` and `NSSupportsAutomaticGraphicsSwitching` to true, and sets `LSMinimumSystemVersion` to `10.13` when that value is empty or `10.8`. In `Contents/Resources/DataOSX` and `Contents/Resources/CommonData`, `apply` rewrites `http://www.team17.com` and `http://www.google-analytics.com` to `https`, and prefixes `// DISABLED:` and one space onto `URL_Internal` lines that contain `xom.team17.com`.
+[README.md](README.md#what-it-changes) lists every change that `fix` and `apply` make to the game app, and [Undo](README.md#undo) describes the restore commands.
 
-`apply` signs the bundle with `codesign --force --deep --sign -` and removes the `com.apple.quarantine` attribute. `apply` deletes `QtSystem_GameWindow.geometry` and `QtSystem_GameWindow.windowState` from the defaults domain `com.team17.Worms W.M.D`.
+## Trust in the Qt archive
 
-The backup directory is `~/Documents/WormsWMD-Backup-YYYYMMDD-HHMMSS` in UTC. A `--backup-dir` path inside the app is rejected. `wormswmd restore` copies that backup back onto the app.
+The Qt archive is built and published by the author of the upstream WormsWMD-macOS-Fix. This project does not rebuild it. The default, `WORMSWMD_QT` and `--qt` paths check the archive against the SHA-256 compiled into `wormswmd` before extraction. Two inputs bypass that check: `--qt-prefix` copies an extracted Qt directory without any checksum, and `--qt-sha256` replaces the compiled-in checksum (and is accepted only with `--qt` or `WORMSWMD_QT`). Both print a warning. Code from these inputs runs inside the game and the user is responsible for it.

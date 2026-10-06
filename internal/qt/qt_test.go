@@ -109,6 +109,33 @@ func TestExtract(t *testing.T) {
 	}
 }
 
+func escapeChain() []tarEntry {
+	return []tarEntry{
+		{name: "d", typ: tar.TypeDir},
+		{name: "d/e", typ: tar.TypeDir},
+		{name: "d/e/a", typ: tar.TypeSymlink, link: "../.."},
+		{name: "f", typ: tar.TypeSymlink, link: "d/e/a/../.."},
+		{name: "f/pwned.txt", body: []byte("x")},
+	}
+}
+
+func TestExtractRejectsSymlinkChainEscape(t *testing.T) {
+	data, err := gzipTar(escapeChain())
+	if err != nil {
+		t.Fatal(err)
+	}
+	parent := t.TempDir()
+	dest := filepath.Join(parent, "one", "two")
+	if err := Extract(t.Context(), bytes.NewReader(data), dest); err == nil {
+		t.Fatal("symlink chain escape extracted")
+	}
+	for _, escaped := range []string{filepath.Join(parent, "pwned.txt"), filepath.Join(parent, "one", "pwned.txt")} {
+		if _, err := os.Stat(escaped); err == nil {
+			t.Fatalf("%s written outside the destination", escaped)
+		}
+	}
+}
+
 func FuzzExtract(f *testing.F) {
 	f.Add([]byte{})
 	seed, err := gzipTar([]tarEntry{
@@ -119,6 +146,11 @@ func FuzzExtract(f *testing.F) {
 		f.Fatal(err)
 	}
 	f.Add(seed)
+	escape, err := gzipTar(escapeChain())
+	if err != nil {
+		f.Fatal(err)
+	}
+	f.Add(escape)
 	f.Fuzz(func(t *testing.T, data []byte) {
 		dest := t.TempDir()
 		err := Extract(t.Context(), bytes.NewReader(data), dest)

@@ -40,6 +40,8 @@ type Report struct {
 	Exit     int      `json:"exit"`
 	Problems []string `json:"problems"`
 	Notes    []string `json:"notes"`
+
+	Ambiguous bool `json:"-"`
 }
 
 type Probes struct {
@@ -136,8 +138,12 @@ func resolve(ctx context.Context, explicit, home, applications string) (string, 
 	if err == nil {
 		return found, Report{}, nil
 	}
-	var ambiguous *game.AmbiguousError
-	if errors.As(err, &ambiguous) || errors.Is(err, game.ErrNotFound) {
+	if _, ok := errors.AsType[*game.AmbiguousError](err); ok {
+		report := missingReport("", err.Error())
+		report.Ambiguous = true
+		return "", report, nil
+	}
+	if errors.Is(err, game.ErrNotFound) {
 		return "", missingReport("", err.Error()), nil
 	}
 	return "", Report{}, fmt.Errorf("check: %w", err)

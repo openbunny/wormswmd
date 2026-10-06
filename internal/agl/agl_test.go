@@ -328,3 +328,13 @@ func TestStubErrorCodes(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestBuildMissingClangNamesRemedy(t *testing.T) {
+	exec := func(context.Context, string, ...string) ([]byte, error) {
+		return nil, errors.New("xcrun: exit status 1")
+	}
+	_, err := Build(t.Context(), filepath.Join(t.TempDir(), "agl"), exec)
+	if err == nil || !strings.Contains(err.Error(), "xcode-select --install") {
+		t.Fatalf("Build error = %v", err)
+	}
+}

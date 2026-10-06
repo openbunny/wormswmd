@@ -34,6 +34,7 @@ func TestFixDoesNotFetch(t *testing.T) {
 			home := t.TempDir()
 			t.Setenv("HOME", home)
 			t.Setenv("USERPROFILE", home)
+			t.Setenv("PATH", "")
 			app := filepath.Join(home, "missing.app")
 			if tc.scaffold {
 				var err error
