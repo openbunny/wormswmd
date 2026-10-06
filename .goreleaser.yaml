@@ -33,30 +33,6 @@ signs:
     artifacts: checksum
     signature: '${artifact}.bundle'
     args: ['sign-blob', '--yes', '--bundle=${signature}', '${artifact}']
-homebrew_casks:
-  - name: wormswmd
-    homepage: https://github.com/openbunny/wormswmd
-    description: Patches Worms W.M.D so the game opens again
-    license: MIT
-    directory: Casks
-    commit_author:
-      name: Robot
-      email: bot@fiona.sm
-    repository:
-      owner: OA
-      name: homebrew-tap
-      token: '{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}'
-    skip_upload: '{{ if .Env.HOMEBREW_TAP_GITHUB_TOKEN }}false{{ else }}true{{ end }}'
-    binaries: [wormswmd]
-    custom_block: |
-      depends_on arch: :arm64
-    hooks:
-      post:
-        install: |
-          if OS.mac?
-            system_command "/usr/bin/xattr",
-                           args: ["-dr", "com.apple.quarantine", "#{staged_path}/wormswmd"]
-          end
 release:
   github:
     owner: openbunny

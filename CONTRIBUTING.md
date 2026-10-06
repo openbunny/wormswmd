@@ -42,9 +42,9 @@ The workflow:
 3. Builds a `darwin/arm64` binary with `CGO_ENABLED=0` and `-trimpath`, and stamps `cmd.buildVersion` with the tag.
 4. Packs the binary with `LICENSE`, `NOTICE` and `LICENSES/*` in `wormswmd_VERSION_darwin_arm64.tar.gz`, writes a CycloneDX SBOM for the archive with `syft`, and writes `checksums.txt`.
 5. Signs `checksums.txt` with keyless `cosign` through GitHub Actions OIDC, which produces `checksums.txt.bundle`. See [SECURITY.md](SECURITY.md#release-artifacts).
-6. Publishes the GitHub release for the tag and generates the Homebrew cask `Casks/wormswmd.rb`.
+6. Publishes the GitHub release for the tag.
 
-The cask reaches `OA/homebrew-tap` automatically only when the `HOMEBREW_TAP_GITHUB_TOKEN` repository secret exists. The token needs write access to the contents of that repository. Without the secret, the workflow skips the upload. In both cases it attaches `dist/homebrew/` to the workflow run as the `homebrew-cask` artifact, and a maintainer commits `Casks/wormswmd.rb` from it to the tap by hand.
+The Homebrew cask lives in [`OA/homebrew-tap`](https://github.com/OA/homebrew-tap) as `Casks/wormswmd.rb`. Renovate in that repository reads each new release and its `darwin_arm64` archive digest from the GitHub API and opens a pull request that updates the cask version and SHA-256.
 
 On a pull request, the workflow runs `goreleaser release --snapshot --clean --skip=sign`. It builds everything except the signature and publishes nothing.
 
