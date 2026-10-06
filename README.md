@@ -85,7 +85,7 @@ Back up saves with `wormswmd saves backup`. It writes `~/Documents/WormsWMD-Save
 
 ## Risks
 
-- The Qt libraries come from a third-party archive. The author of WormsWMD-macOS-Fix built and published it. This project has not rebuilt it from source and does not mirror it. Trust rests on the SHA-256 checksum compiled into `wormswmd`, which rejects a download whose checksum differs. The checksum shows that the file is the one that was pinned; it does not show how the file was built. If that repository removes the file, `fix` cannot download it, and the error says how to supply the archive another way.
+- The Qt libraries come from a prebuilt archive. The author of WormsWMD-macOS-Fix assembled it from Homebrew's `qt@5` 5.15.19 bottle and the bottles of its dependencies, built from the Qt source `qt-everywhere-opensource-src-5.15.19.tar.xz` (SHA-256 `173c2326dae138bbb0d98921e9d911e55c00163d93a6db29f294b5e19ff306ae`); `SOURCE_PROVENANCE.tsv` inside the archive lists every input with its checksum. This project mirrors that archive unchanged as an asset of its `v0.1.0` release and has not rebuilt it from source. Trust rests on the SHA-256 checksum compiled into `wormswmd`, which rejects a download whose checksum differs. The checksum shows that the file is the one that was pinned; it does not show how the file was built. When the download fails, the error says how to supply the archive another way.
 - `--qt PATH` and `WORMSWMD_QT` use an archive you supply, checked against the compiled-in checksum. `--qt-sha256` replaces that checksum and is accepted only together with `--qt` or `WORMSWMD_QT`. `--qt-prefix` uses an extracted Qt directory without any checksum check. `wormswmd` warns that the pinned checksum is not used when you pass `--qt-prefix` or `--qt-sha256`. Native code from these inputs runs inside the game; use only builds you trust.
 - The game app is modified and signed again with an ad-hoc signature, not the original one.
 - A Steam file verification or a game update can replace the changed files. When the game stops opening after either, run `wormswmd fix` again.
@@ -148,7 +148,7 @@ stdout carries the command result and stderr carries progress. `--json` prints t
 
 ## Network
 
-`wormswmd qt fetch` always downloads the Qt archive. `wormswmd fix` downloads it only when `--qt`, `--qt-prefix` and `WORMSWMD_QT` are all unset and the cached archive is absent or does not match the checksum. The source is the `dist/` directory of <https://github.com/cboyd0319/WormsWMD-macOS-Fix>, served from raw.githubusercontent.com. A failed download names the URL, the expected SHA-256 and the remedy: download the archive another way and pass `--qt PATH`. No other command uses the network. See [PRIVACY.md](PRIVACY.md).
+`wormswmd qt fetch` always downloads the Qt archive. `wormswmd fix` downloads it only when `--qt`, `--qt-prefix` and `WORMSWMD_QT` are all unset and the cached archive is absent or does not match the checksum. The source is the `qt-frameworks-x86_64-5.15.19.tar.gz` asset of the [`v0.1.0` release](https://github.com/openbunny/wormswmd/releases/tag/v0.1.0); github.com redirects the download to its release-asset host. A failed download names the URL, the expected SHA-256 and the remedy: download the archive another way and pass `--qt PATH`. No other command uses the network. See [PRIVACY.md](PRIVACY.md).
 
 ## Supported versions
 

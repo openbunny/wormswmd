@@ -29,8 +29,8 @@ import (
 const (
 	ArchiveName       = "qt-frameworks-x86_64-5.15.19.tar.gz"
 	PinSHA256         = "e16e16c165a4e2b3ea37757b2a566ddaf53f9e68a193886d868d1a7e1680a718"
-	DistCommit        = "e62705a7445d28ea048159a858878b0f787dfd13"
-	ArchiveURL        = "https://raw.githubusercontent.com/cboyd0319/WormsWMD-macOS-Fix/" + DistCommit + "/dist/" + ArchiveName
+	ReleaseTag        = "v0.1.0"
+	ArchiveURL        = "https://github.com/openbunny/wormswmd/releases/download/" + ReleaseTag + "/" + ArchiveName
 	Series            = "5.15"
 	shortPrefix       = Series + "."
 	fetchTimeout      = 5 * time.Minute

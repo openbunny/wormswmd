@@ -35,9 +35,18 @@ reproduced here as a courtesy and for attribution:
     on macOS 26 (Tahoe) and later. Worms W.M.D is the property of Team17 Digital Ltd.
 
 Qt frameworks are downloaded at fetch time from an archive that the upstream
-author built and published. They are LGPL and are not vendored in this
-repository. The Qt LGPL terms are https://www.gnu.org/licenses/lgpl-3.0.html
-and https://www.qt.io/licensing/.
+author assembled from Homebrew's qt@5 5.15.19 bottle and its dependencies.
+This project redistributes that archive unchanged as an asset of its v0.1.0
+GitHub release; it is not stored in this repository. Qt 5.15 is available
+under the LGPL (2.1 and 3.0) among other licences; the terms are
+https://www.gnu.org/licenses/lgpl-3.0.html, https://www.gnu.org/licenses/old-licenses/lgpl-2.1.html
+and https://www.qt.io/licensing/. The corresponding source is
+https://download.qt.io/archive/qt/5.15/5.15.19/single/qt-everywhere-opensource-src-5.15.19.tar.xz
+(SHA-256 173c2326dae138bbb0d98921e9d911e55c00163d93a6db29f294b5e19ff306ae).
+SOURCE_PROVENANCE.tsv inside the archive lists every bottle and source used,
+with checksums. The libraries are dynamic frameworks in the app's
+Contents/Frameworks directory; a user can replace them with their own build
+through wormswmd apply --qt or --qt-prefix.
 
 The AGL stub is an independent implementation of the removed AGL entry points.
 The archive checksum pin is PinSHA256 in internal/qt.

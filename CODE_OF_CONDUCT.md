@@ -24,8 +24,8 @@ which could reasonably be considered inappropriate in a professional setting.
 ## Enforcement
 
 Instances of abusive, harassing, or otherwise unacceptable behaviour may be
-reported to the project maintainers through a private GitHub Security Advisory
-or by contacting an organization administrator. All complaints are reviewed and
+reported to the maintainer, @OA, through a private GitHub Security Advisory at
+<https://github.com/openbunny/wormswmd/security/advisories/new>. All complaints are reviewed and
 investigated. Maintainers are obligated to respect the
 privacy and security of the reporter.
 
