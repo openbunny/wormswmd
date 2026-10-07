@@ -243,6 +243,8 @@ func TestLoadImageSkipsOwnID(t *testing.T) {
 func FuzzParseDeps(f *testing.F) {
 	f.Add("bin:\n\t/usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current version 1.0.0)\n")
 	f.Add("")
+	f.Add("\tcompatibility version0")
+	f.Add("\tcompatibility version (compatibility version 1.0.0, current version 1.0.0)")
 	f.Fuzz(func(t *testing.T, out string) {
 		for _, dep := range ParseDeps(out) {
 			if strings.Contains(dep, "compatibility version") {
