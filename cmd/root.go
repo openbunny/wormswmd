@@ -48,7 +48,7 @@ func New() *cobra.Command {
 			return nil
 		},
 	}
-	root.PersistentFlags().Bool("json", false, "Print JSON.")
+	root.PersistentFlags().BoolP("json", "j", false, "Print JSON.")
 	root.PersistentFlags().Bool("verbose", false, "Log every step with timestamps and details to stderr.")
 	root.PersistentFlags().Bool("quiet", false, "Log only warnings and errors to stderr.")
 	root.PersistentFlags().String("home", "", "Home directory under which the game, the saves and the backups are looked up. An empty value uses the user home directory.")
@@ -111,7 +111,9 @@ func locations(cmd *cobra.Command) (home, applications string, err error) {
 }
 
 func writeJSON(cmd *cobra.Command, v any) error {
-	return failure(json.NewEncoder(cmd.OutOrStdout()).Encode(v))
+	enc := json.NewEncoder(cmd.OutOrStdout())
+	enc.SetIndent("", "  ")
+	return failure(enc.Encode(v))
 }
 
 func writeLines(cmd *cobra.Command, lines []string) error {
