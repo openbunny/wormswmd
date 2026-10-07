@@ -9,6 +9,11 @@ import (
 
 var buildVersion string
 
+// Version reports the build version for the root command's --version flag.
+func Version() string {
+	return wormswmdVersion()
+}
+
 func newVersion() *cobra.Command {
 	return &cobra.Command{
 		Use:   "version",
