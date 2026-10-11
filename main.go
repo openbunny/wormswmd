@@ -10,6 +10,7 @@ import (
 
 	"charm.land/fang/v2"
 
+	"github.com/openbunny/clilog"
 	"github.com/openbunny/wormswmd/cmd"
 )
 
@@ -18,7 +19,7 @@ func main() {
 }
 
 func run() int {
-	cmd.UseLogger(os.Stderr, cmd.Normal)
+	clilog.UseLogger(os.Stderr, clilog.Normal)
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	err := fang.Execute(ctx, cmd.New(),
