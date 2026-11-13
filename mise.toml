@@ -1,5 +1,5 @@
 [tools]
-node = "24.21.0"
+node = "26.13.1"
 uv = "0.12.17"
 just = "1.58.0"
 golangci-lint = "2.14.0"
