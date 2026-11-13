@@ -17,4 +17,4 @@ taplo = "0.10.0"
 goreleaser = "2.18.2"
 "aqua:anchore/syft" = "1.54.0"
 cosign = "3.1.3"
-"pipx:reuse" = { version = "6.2.0", extras = "charset-normalizer" }
+"pipx:reuse" = { version = "6.3.0", extras = "charset-normalizer" }
