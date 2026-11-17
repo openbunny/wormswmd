@@ -362,12 +362,16 @@ func ParseDeps(out string) []string {
 			continue
 		}
 		line = strings.TrimSpace(line)
-		if i := strings.Index(line, " (compatibility version "); i >= 0 {
-			line = line[:i]
+		path, _, found := strings.Cut(line, " (compatibility version ")
+		if !found {
+			continue
 		}
-		if line != "" {
-			deps = append(deps, line)
+		// otool prints the version annotation once per dependency; a path
+		// still carrying it after the cut is malformed, not a real dylib.
+		if path == "" || strings.Contains(path, "compatibility version") {
+			continue
 		}
+		deps = append(deps, path)
 	}
 	return deps
 }
