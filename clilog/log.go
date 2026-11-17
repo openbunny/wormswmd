@@ -1,4 +1,4 @@
-package cmd
+package clilog
 
 import (
 	"io"
@@ -8,14 +8,20 @@ import (
 	charmlog "charm.land/log/v2"
 )
 
+// Verbosity is how much an operational log reports.
 type Verbosity int
 
 const (
+	// Quiet logs warnings and errors only.
 	Quiet Verbosity = iota
+	// Normal logs warnings, errors, and human-readable progress.
 	Normal
+	// Verbose logs every step, with timestamps.
 	Verbose
 )
 
+// UseLogger installs a slog logger that writes styled operational logs to w.
+// stdout is the command result; log lines belong on stderr.
 func UseLogger(w io.Writer, verbosity Verbosity) {
 	opts := charmlog.Options{Level: charmlog.InfoLevel}
 	styles := charmlog.DefaultStyles()
@@ -28,7 +34,7 @@ func UseLogger(w io.Writer, verbosity Verbosity) {
 		opts.Level = charmlog.DebugLevel
 		opts.ReportTimestamp = true
 	default:
-		panic("cmd: unhandled verbosity")
+		panic("clilog: unhandled verbosity")
 	}
 	logger := charmlog.NewWithOptions(w, opts)
 	logger.SetStyles(styles)

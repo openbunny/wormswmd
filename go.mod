@@ -4,13 +4,14 @@ go 1.27.1
 
 require (
 	charm.land/fang/v2 v2.0.1
-	charm.land/lipgloss/v2 v2.0.5
-	charm.land/log/v2 v2.0.1
+	github.com/openbunny/clilog v0.0.0
 	github.com/spf13/cobra v1.10.2
 	howett.net/plist v1.0.1
 )
 
 require (
+	charm.land/lipgloss/v2 v2.0.5 // indirect
+	charm.land/log/v2 v2.0.1 // indirect
 	github.com/charmbracelet/colorprofile v0.4.3 // indirect
 	github.com/charmbracelet/ultraviolet v0.0.0-20260205113103-524a6607adb8 // indirect
 	github.com/charmbracelet/x/ansi v0.11.7 // indirect
@@ -37,3 +38,5 @@ require (
 	golang.org/x/sys v0.46.0 // indirect
 	golang.org/x/text v0.39.0 // indirect
 )
+
+replace github.com/openbunny/clilog => ./clilog

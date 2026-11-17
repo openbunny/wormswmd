@@ -2,12 +2,12 @@ package cmd
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"os"
 
 	"github.com/spf13/cobra"
 
+	"github.com/openbunny/clilog"
 	"github.com/openbunny/wormswmd/internal/check"
 )
 
@@ -26,31 +26,9 @@ func New() *cobra.Command {
 		Long:          rootLong,
 		SilenceErrors: true,
 		SilenceUsage:  true,
-		PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
-			verbose, err := cmd.Flags().GetBool("verbose")
-			if err != nil {
-				return failure(fmt.Errorf("flag --verbose: %w", err))
-			}
-			quiet, err := cmd.Flags().GetBool("quiet")
-			if err != nil {
-				return failure(fmt.Errorf("flag --quiet: %w", err))
-			}
-			switch {
-			case verbose && quiet:
-				return failure(errors.New("--verbose and --quiet cannot be combined; pass one of them"))
-			case verbose:
-				UseLogger(cmd.ErrOrStderr(), Verbose)
-			case quiet:
-				UseLogger(cmd.ErrOrStderr(), Quiet)
-			default:
-				UseLogger(cmd.ErrOrStderr(), Normal)
-			}
-			return nil
-		},
 	}
+	clilog.Attach(root)
 	root.PersistentFlags().BoolP("json", "j", false, "Print JSON.")
-	root.PersistentFlags().Bool("verbose", false, "Log every step with timestamps and details to stderr.")
-	root.PersistentFlags().Bool("quiet", false, "Log only warnings and errors to stderr.")
 	root.PersistentFlags().String("home", "", "Home directory under which the game, the saves and the backups are looked up. An empty value uses the user home directory.")
 	root.PersistentFlags().String("applications", "", "Applications directory searched for the game. An empty value uses /Applications.")
 	root.AddCommand(

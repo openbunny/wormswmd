@@ -13,6 +13,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/openbunny/clilog"
 	"github.com/openbunny/wormswmd/internal/apply"
 	"github.com/openbunny/wormswmd/internal/check"
 	"github.com/openbunny/wormswmd/internal/game"
@@ -97,7 +98,7 @@ func TestEnsurePinnedQtWarnsOnlyOnBadArchive(t *testing.T) {
 			var buf bytes.Buffer
 			prevLog := slog.Default()
 			t.Cleanup(func() { slog.SetDefault(prevLog) })
-			UseLogger(&buf, Verbose)
+			clilog.UseLogger(&buf, clilog.Verbose)
 			if err := ensurePinnedQt(t.Context(), path); err != nil {
 				t.Fatal(err)
 			}
