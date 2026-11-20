@@ -12,7 +12,7 @@ jobs:
     name: Fuzz
     permissions:
       contents: read
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     env:
       FUZZ_TIME: 60s
     strategy:
